@@ -1002,7 +1002,7 @@
       $('lock').hidden = false;
       $('lock').innerHTML =
         '確認が終わっていません。<br>' +
-        '<a href="' + modeHref('a') + '">選管への確認</a>で<strong>同じPDF</strong>を開き、「確認完了」にしてから、' +
+        '<a href="?mode=a">選管への確認</a>で<strong>同じPDF</strong>を開き、「確認完了」にしてから、' +
         '「立候補者情報の入力」でもう一度同じPDFを開いてください。';
       return true;
     } else if (fileRec.status === '入力完了') {
@@ -1213,9 +1213,9 @@
   }
 
   function modeHref(nextMode) {
-    var routeA = window.ROUTE_A || '/書き込み用ツール';
-    var routeB = window.ROUTE_B || '/立候補者情報の入力ツール';
-    return nextMode === 'b' ? routeB : routeA;
+    var u = new URL(location.href);
+    u.searchParams.set('mode', nextMode);
+    return u.pathname + u.search;
   }
 
   window.addEventListener('beforeunload', function () { if (hasGas) pushGas(); });
