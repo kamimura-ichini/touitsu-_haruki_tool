@@ -48,6 +48,9 @@
   $('bannerText').textContent = hasGas
     ? '保存先は、このスプレッドシートの台帳です。切れている間はこのパソコンにも残します。'
     : '試作です。保存先はこのパソコンの中だけです。確認の画面で印を書いてから、入力の画面を開きます。';
+  $('empty').textContent = mode === 'a'
+    ? '上の「PDFを開く」で資料を表示します。'
+    : '上の「デモPDFを開く」か「PDFを開く」で資料を表示します。';
 
   MASTERS.forEach(function (name) {
     var opt = document.createElement('option');

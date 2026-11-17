@@ -271,8 +271,8 @@
     <button type="button" id="backEdit" class="bonly">入力に戻る</button>
     <button type="button" id="completeB" class="bonly primary">入力完了</button>
     <label class="filebtn">PDFを開く<input id="file" type="file" accept="application/pdf"></label>
-    <select id="demoPick" aria-label="デモ用PDF"></select>
-    <button type="button" id="sample">デモPDFを開く</button>
+    <select id="demoPick" class="bonly" aria-label="デモ用PDF"></select>
+    <button type="button" id="sample" class="bonly">デモPDFを開く</button>
   </header>
   <div class="banner">
     <span id="modeLabel"></span>
@@ -294,7 +294,7 @@
         <span id="zoomLabel"></span>
         <button type="button" id="zoomIn">＋</button>
       </div>
-      <div id="empty">上の「デモPDFを開く」か「PDFを開く」で資料を表示します。</div>
+      <div id="empty"></div>
       <div class="page-wrap" id="pageWrap" hidden>
         <canvas id="pdf"></canvas>
         <div id="pinLayer"></div>
@@ -360,9 +360,16 @@
   <script src="lib/pdf.min.js"></script>
   <script>
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+    (function () {
+      var params = new URLSearchParams(location.search);
+      if (!params.has('mode')) {
+        params.set('mode', 'a');
+        location.replace(location.pathname + '?' + params.toString() + location.hash);
+      }
+    })();
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>
