@@ -3,7 +3,7 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const pdf = fs.readFileSync(path.join(root, 'web/lib/pdf.min.js'), 'utf8');
 const worker = JSON.stringify(fs.readFileSync(path.join(root, 'web/lib/pdf.worker.min.js'), 'utf8'));
-const app = fs.readFileSync(path.join(root, 'web/アプリ.js'), 'utf8');
+const app = fs.readFileSync(path.join(root, 'web/app.js'), 'utf8');
 const index = fs.readFileSync(path.join(root, 'web/index.html'), 'utf8');
 const style = index.slice(index.indexOf('<style>'), index.indexOf('</style>') + 8);
 const body = index.slice(index.indexOf('<body>') + 6, index.indexOf('<script src="lib/pdf.min.js">'));
