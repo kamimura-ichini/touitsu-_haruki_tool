@@ -61,6 +61,8 @@
       align-items: center;
     }
     .banner a { color: var(--navy); }
+    .banner #modeLabel { font-weight: 700; margin-right: 8px; }
+    .banner a.current { font-weight: 700; text-decoration: none; pointer-events: none; color: #333; }
     .main { flex: 1; display: flex; min-height: 0; position: relative; }
     body.flip .main { flex-direction: row-reverse; }
     #pinList {
@@ -236,7 +238,9 @@
       padding: 24px;
       text-align: center;
       font-size: 22px;
+      line-height: 1.5;
     }
+    #lock a { color: var(--navy); font-weight: 700; }
     [hidden] { display: none !important; }
     body.mode-a .bonly { display: none !important; }
     body.mode-b .aonly { display: none !important; }
@@ -272,8 +276,9 @@
     <button type="button" id="sample">デモPDFを開く</button>
   </header>
   <div class="banner">
+    <span id="modeLabel"></span>
     <span id="bannerText"></span>
-    <a id="linkA" href="?mode=a">確認の画面</a>
+    <a id="linkA" href="?mode=a">確認の画面（先にこちら）</a>
     <a id="linkB" href="?mode=b">入力の画面</a>
   </div>
   <div class="main">
@@ -359,6 +364,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=12"></script>
 </body>
 </html>

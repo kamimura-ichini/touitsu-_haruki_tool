@@ -20,6 +20,8 @@
   ];
   var STORE_KEY = 'senkyo-shisaku-v1';
   var NAME_KEY = 'senkyo-shisaku-name';
+  var LAST_KEY = 'senkyo-shisaku-last';
+  var pendingDemoPath = '';
 
   var mode = window.APP_MODE === 'b' ? 'b' : 'a';
   var hasGas = !!window.HAS_GAS;
@@ -39,6 +41,10 @@
 
   document.body.classList.add(mode === 'b' ? 'mode-b' : 'mode-a');
   document.title = mode === 'b' ? '最終版の入力' : '不足の確認';
+  $('modeLabel').textContent = mode === 'b' ? '【入力の画面】' : '【確認の画面】';
+  (mode === 'b' ? $('linkB') : $('linkA')).classList.add('current');
+  $('linkA').href = modeHref('a');
+  $('linkB').href = modeHref('b');
   $('bannerText').textContent = hasGas
     ? '保存先は、このスプレッドシートの台帳です。切れている間はこのパソコンにも残します。'
     : '試作です。保存先はこのパソコンの中だけです。確認の画面で印を書いてから、入力の画面を開きます。';
@@ -68,6 +74,7 @@
   });
   $('sample').addEventListener('click', function () {
     var item = DEMO_PDFS[Number($('demoPick').value)] || DEMO_PDFS[0];
+    pendingDemoPath = item.path;
     fetch(item.path).then(function (res) {
       if (!res.ok) throw new Error('demo');
       return res.arrayBuffer();
@@ -81,6 +88,7 @@
   $('file').addEventListener('change', function () {
     var file = $('file').files && $('file').files[0];
     if (!file) return;
+    pendingDemoPath = '';
     file.arrayBuffer().then(function (buf) { openBuffer(buf, file.name); });
   });
 
@@ -179,6 +187,8 @@
     }).then(function (opened) {
       pdfDoc = opened.doc;
       fileRec = takeFile(opened.hash, fileName, pdfDoc.numPages);
+      rememberLastOpen(fileName, opened.hash, pendingDemoPath);
+      pendingDemoPath = '';
       undoStack = readUndo(opened.hash);
       selectedId = null;
       locked = false;
@@ -978,7 +988,12 @@
         message = fileRec.aName + 'さんが作業中です';
       }
     } else if (fileRec.status === '未着手' || fileRec.status === '確認の途中') {
-      message = '確認が終わっていません';
+      $('lock').hidden = false;
+      $('lock').innerHTML =
+        '確認が終わっていません。<br>' +
+        '<a href="?mode=a">確認の画面</a>で<strong>同じPDF</strong>を開き、「確認完了」にしてから、' +
+        '入力の画面でもう一度同じPDFを開いてください。';
+      return true;
     } else if (fileRec.status === '入力完了') {
       message = '入力完了です';
     } else if (fileRec.status === '入力の途中' && fileRec.bName && fileRec.bName !== name) {
@@ -1187,6 +1202,40 @@
       google.script.run.withSuccessHandler(resolve).withFailureHandler(reject)[name](arg);
     });
   }
+
+  function modeHref(nextMode) {
+    var u = new URL(location.href);
+    u.searchParams.set('mode', nextMode);
+    return u.pathname + u.search;
+  }
+
+  function rememberLastOpen(fileName, hash, demoPath) {
+    try {
+      localStorage.setItem(LAST_KEY, JSON.stringify({
+        fileName: fileName,
+        hash: hash,
+        demoPath: demoPath || ''
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function tryReopenLastDemo() {
+    var raw;
+    try { raw = localStorage.getItem(LAST_KEY); } catch (e) { return; }
+    if (!raw) return;
+    var last;
+    try { last = JSON.parse(raw); } catch (e) { return; }
+    if (!last.demoPath) return;
+    pendingDemoPath = last.demoPath;
+    fetch(last.demoPath).then(function (res) {
+      if (!res.ok) throw new Error('reopen');
+      return res.arrayBuffer();
+    }).then(function (buf) {
+      openBuffer(buf, last.fileName);
+    }).catch(function () { /* 手動で開き直す */ });
+  }
+
+  tryReopenLastDemo();
 
   window.addEventListener('beforeunload', function () { if (hasGas) pushGas(); });
 })();
