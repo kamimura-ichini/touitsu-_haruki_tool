@@ -3,8 +3,21 @@
   "installCommand": "",
   "buildCommand": "",
   "outputDirectory": "web",
+  "trailingSlash": false,
   "redirects": [
-    { "source": "/", "destination": "/書き込み用ツール", "permanent": false }
+    { "source": "/", "destination": "/書き込み用ツール", "permanent": false },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "query", "key": "mode", "value": "a" }],
+      "destination": "/書き込み用ツール",
+      "permanent": false
+    },
+    {
+      "source": "/:path*",
+      "has": [{ "type": "query", "key": "mode", "value": "b" }],
+      "destination": "/立候補者情報の入力ツール",
+      "permanent": false
+    }
   ],
   "rewrites": [
     { "source": "/書き込み用ツール", "destination": "/index.html" },

@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base href="/">
   <title>資料入力 試作</title>
   <style>
     :root {
@@ -354,29 +355,32 @@
   </div>
   <datalist id="masters"></datalist>
 
-  <script src="lib/pdf.min.js"></script>
+  <script src="/lib/pdf.min.js"></script>
   <script>
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'lib/pdf.worker.min.js';
+    pdfjsLib.GlobalWorkerOptions.workerSrc = '/lib/pdf.worker.min.js';
     window.ROUTE_A = '/書き込み用ツール';
     window.ROUTE_B = '/立候補者情報の入力ツール';
+  function routePath() {
+    return decodeURIComponent(location.pathname).replace(/\/index\.html$/i, '').replace(/\/+$/, '') || '/';
+  }
     (function () {
-      var path = decodeURIComponent(location.pathname).replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/';
+      var path = routePath();
       var params = new URLSearchParams(location.search);
       if (params.has('mode')) {
         location.replace((params.get('mode') === 'b' ? window.ROUTE_B : window.ROUTE_A) + location.hash);
         return;
       }
-      if (path === '/' || path === '') {
+      if (path === '/' || path === '/index.html') {
         location.replace(window.ROUTE_A + location.hash);
       }
     })();
     window.APP_MODE = (function () {
-      var path = decodeURIComponent(location.pathname).replace(/\/index\.html$/, '').replace(/\/+$/, '') || '/';
-      if (path === window.ROUTE_B || path.endsWith(window.ROUTE_B)) return 'b';
+      var path = routePath();
+      if (path === window.ROUTE_B) return 'b';
       return 'a';
     })();
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=20"></script>
+  <script src="/app.js?v=21"></script>
 </body>
 </html>
