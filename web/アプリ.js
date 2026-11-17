@@ -54,14 +54,27 @@
     localStorage.setItem(NAME_KEY, $('name').value.trim());
   });
 
+  var DEMO_PDFS = [
+    { label: '王寺町（サンプル）', path: 'sample.pdf', name: '告示432王寺町議会議員選挙_21658_42184.pdf' },
+    { label: 'デモ 298', path: 'demo/298-23737-45159.pdf', name: '告示298_23737_45159.pdf' },
+    { label: 'デモ 359', path: 'demo/359-23924-45463.pdf', name: '告示359_23924_45463.pdf' },
+    { label: 'デモ 384', path: 'demo/384-24018-45557.pdf', name: '告示384_24018_45557.pdf' }
+  ];
+  DEMO_PDFS.forEach(function (item, index) {
+    var opt = document.createElement('option');
+    opt.value = String(index);
+    opt.textContent = item.label;
+    $('demoPick').appendChild(opt);
+  });
   $('sample').addEventListener('click', function () {
-    fetch('sample.pdf').then(function (res) {
-      if (!res.ok) throw new Error('sample');
+    var item = DEMO_PDFS[Number($('demoPick').value)] || DEMO_PDFS[0];
+    fetch(item.path).then(function (res) {
+      if (!res.ok) throw new Error('demo');
       return res.arrayBuffer();
     }).then(function (buf) {
-      openBuffer(buf, '告示432王寺町議会議員選挙_21658_42184.pdf');
+      openBuffer(buf, item.name);
     }).catch(function () {
-      showToast('サンプルPDFを読めませんでした');
+      showToast('デモPDFを読めませんでした。ファイルがサーバーに上がっているか確認してください');
     });
   });
 

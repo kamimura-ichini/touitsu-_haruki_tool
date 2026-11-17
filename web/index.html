@@ -30,11 +30,13 @@
       align-items: center;
       padding: 8px 12px;
     }
-    header input[type="text"] {
+    header input[type="text"],
+    header select {
       width: 8em;
       font-size: 16px;
       padding: 6px 8px;
     }
+    #demoPick { width: 11em; }
     #fileName { font-weight: 700; }
     #status, #unref, #saveState { opacity: .95; }
     button, .filebtn {
@@ -266,7 +268,8 @@
     <button type="button" id="backEdit" class="bonly">入力に戻る</button>
     <button type="button" id="completeB" class="bonly primary">入力完了</button>
     <label class="filebtn">PDFを開く<input id="file" type="file" accept="application/pdf"></label>
-    <button type="button" id="sample">王寺町のPDFで試す</button>
+    <select id="demoPick" aria-label="デモ用PDF"></select>
+    <button type="button" id="sample">デモPDFを開く</button>
   </header>
   <div class="banner">
     <span id="bannerText"></span>
@@ -287,7 +290,7 @@
         <span id="zoomLabel"></span>
         <button type="button" id="zoomIn">＋</button>
       </div>
-      <div id="empty">上の「王寺町のPDFで試す」か「PDFを開く」で資料を表示します。</div>
+      <div id="empty">上の「デモPDFを開く」か「PDFを開く」で資料を表示します。</div>
       <div class="page-wrap" id="pageWrap" hidden>
         <canvas id="pdf"></canvas>
         <div id="pinLayer"></div>
@@ -356,6 +359,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="アプリ.js?v=8"></script>
+  <script src="アプリ.js?v=9"></script>
 </body>
 </html>
