@@ -2,5 +2,12 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "",
   "buildCommand": "",
-  "outputDirectory": "web"
+  "outputDirectory": "web",
+  "redirects": [
+    { "source": "/", "destination": "/書き込み用ツール", "permanent": false }
+  ],
+  "rewrites": [
+    { "source": "/書き込み用ツール", "destination": "/index.html" },
+    { "source": "/立候補者情報の入力ツール", "destination": "/index.html" }
+  ]
 }
