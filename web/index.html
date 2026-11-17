@@ -36,7 +36,6 @@
       font-size: 16px;
       padding: 6px 8px;
     }
-    #demoPick { width: 11em; }
     #fileName { font-weight: 700; }
     #status, #unref, #saveState { opacity: .95; }
     button, .filebtn {
@@ -271,8 +270,6 @@
     <button type="button" id="backEdit" class="bonly">入力に戻る</button>
     <button type="button" id="completeB" class="bonly primary">入力完了</button>
     <label class="filebtn">PDFを開く<input id="file" type="file" accept="application/pdf"></label>
-    <select id="demoPick" class="bonly" aria-label="デモ用PDF"></select>
-    <button type="button" id="sample" class="bonly">デモPDFを開く</button>
   </header>
   <div class="banner">
     <span id="modeLabel"></span>
@@ -370,6 +367,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=16"></script>
 </body>
 </html>

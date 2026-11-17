@@ -20,8 +20,6 @@
   ];
   var STORE_KEY = 'senkyo-shisaku-v1';
   var NAME_KEY = 'senkyo-shisaku-name';
-  var LAST_KEY = 'senkyo-shisaku-last';
-  var pendingDemoPath = '';
 
   var mode = window.APP_MODE === 'b' ? 'b' : 'a';
   var hasGas = !!window.HAS_GAS;
@@ -48,9 +46,7 @@
   $('bannerText').textContent = hasGas
     ? '保存先は、このスプレッドシートの台帳です。切れている間はこのパソコンにも残します。'
     : '試作です。保存先はこのパソコンの中だけです。確認の画面で印を書いてから、入力の画面を開きます。';
-  $('empty').textContent = mode === 'a'
-    ? '上の「PDFを開く」で資料を表示します。'
-    : '上の「デモPDFを開く」か「PDFを開く」で資料を表示します。';
+  $('empty').textContent = '上の「PDFを開く」で資料を表示します。';
 
   MASTERS.forEach(function (name) {
     var opt = document.createElement('option');
@@ -63,34 +59,9 @@
     localStorage.setItem(NAME_KEY, $('name').value.trim());
   });
 
-  var DEMO_PDFS = [
-    { label: 'デモ 298', path: 'demo/298-23737-45159.pdf', name: '告示298_23737_45159.pdf' },
-    { label: 'デモ 359', path: 'demo/359-23924-45463.pdf', name: '告示359_23924_45463.pdf' },
-    { label: 'デモ 384', path: 'demo/384-24018-45557.pdf', name: '告示384_24018_45557.pdf' }
-  ];
-  DEMO_PDFS.forEach(function (item, index) {
-    var opt = document.createElement('option');
-    opt.value = String(index);
-    opt.textContent = item.label;
-    $('demoPick').appendChild(opt);
-  });
-  $('sample').addEventListener('click', function () {
-    var item = DEMO_PDFS[Number($('demoPick').value)] || DEMO_PDFS[0];
-    pendingDemoPath = item.path;
-    fetch(item.path).then(function (res) {
-      if (!res.ok) throw new Error('demo');
-      return res.arrayBuffer();
-    }).then(function (buf) {
-      openBuffer(buf, item.name);
-    }).catch(function () {
-      showToast('デモPDFを読めませんでした。ファイルがサーバーに上がっているか確認してください');
-    });
-  });
-
   $('file').addEventListener('change', function () {
     var file = $('file').files && $('file').files[0];
     if (!file) return;
-    pendingDemoPath = '';
     file.arrayBuffer().then(function (buf) { openBuffer(buf, file.name); });
   });
 
@@ -188,8 +159,6 @@
     }).then(function (opened) {
       pdfDoc = opened.doc;
       fileRec = takeFile(opened.hash, fileName, pdfDoc.numPages);
-      rememberLastOpen(fileName, opened.hash, pendingDemoPath);
-      pendingDemoPath = '';
       undoStack = readUndo(opened.hash);
       selectedId = null;
       locked = false;
@@ -1207,34 +1176,6 @@
     u.searchParams.set('mode', nextMode);
     return u.pathname + u.search;
   }
-
-  function rememberLastOpen(fileName, hash, demoPath) {
-    try {
-      localStorage.setItem(LAST_KEY, JSON.stringify({
-        fileName: fileName,
-        hash: hash,
-        demoPath: demoPath || ''
-      }));
-    } catch (e) { /* ignore */ }
-  }
-
-  function tryReopenLastDemo() {
-    var raw;
-    try { raw = localStorage.getItem(LAST_KEY); } catch (e) { return; }
-    if (!raw) return;
-    var last;
-    try { last = JSON.parse(raw); } catch (e) { return; }
-    if (!last.demoPath) return;
-    pendingDemoPath = last.demoPath;
-    fetch(last.demoPath).then(function (res) {
-      if (!res.ok) throw new Error('reopen');
-      return res.arrayBuffer();
-    }).then(function (buf) {
-      openBuffer(buf, last.fileName);
-    }).catch(function () { /* 手動で開き直す */ });
-  }
-
-  tryReopenLastDemo();
 
   window.addEventListener('beforeunload', function () { if (hasGas) pushGas(); });
 })();
