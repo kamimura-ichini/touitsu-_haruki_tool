@@ -173,7 +173,7 @@
     .rowline .name { width: 9.5em; flex: none; font-size: 15px; line-height: 1.3; }
     .rowline input { min-width: 0; font-size: 16px; padding: 8px; }
     .rowline input.field, .rowline select.field { width: 11em; flex: none; font-size: 16px; }
-    .rowline input.value { flex: 1; min-width: 10em; }
+    .rowline input.value, .rowline select.value { flex: 1; min-width: 10em; font-size: 16px; padding: 8px; }
     .hint { color: #8a5a00; font-size: 13px; margin: -4px 0 6px; }
     .checkrow small, .pinrow small { display: block; color: #444; font-weight: 400; }
     .review-item { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
@@ -274,8 +274,8 @@
   <div class="banner">
     <span id="modeLabel"></span>
     <span id="bannerText"></span>
-    <a id="linkA" href="?mode=a">確認の画面（先にこちら）</a>
-    <a id="linkB" href="?mode=b">入力の画面</a>
+    <a id="linkA" href="?mode=a">選管への確認（書き込み用ツール）</a>
+    <a id="linkB" href="?mode=b">立候補者情報の入力（確認用ツール）</a>
   </div>
   <div class="main">
     <aside id="pinList" class="aonly">
@@ -367,6 +367,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=16"></script>
+  <script src="app.js?v=18"></script>
 </body>
 </html>

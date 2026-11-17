@@ -3,14 +3,18 @@
 
   var MASTERS = [
     'カナ', '年齢', '氏名', 'ふりがな', '候補者(ふりがな)氏名', '(ふりがな)通称', '通称',
-    '党派', '政党名', '職業', '肩書', '性別', '生年月日', '新現元別', '住所', '本籍地',
+    '党派', '政党名', '職業', '肩書', '性別', '生年月日', '新現元', '新現元別', '住所', '本籍地',
     '選挙事務所', '選挙事務所TEL', '届出年月日',
     '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）'
   ];
   var FIXED_FIELDS = [
     '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）', '性別',
-    '党派', '職業', '生年月日', '新現元別', '年齢'
+    '党派', '職業', '生年月日', '新現元', '年齢'
   ];
+  var VALUE_CHOICES = {
+    '性別': ['', '男', '女'],
+    '新現元': ['', '新', '現', '元']
+  };
   var ERAS = [
     { name: '令和', short: 'R', start: 2019 },
     { name: '平成', short: 'H', start: 1989 },
@@ -38,14 +42,19 @@
   var $ = function (id) { return document.getElementById(id); };
 
   document.body.classList.add(mode === 'b' ? 'mode-b' : 'mode-a');
-  document.title = mode === 'b' ? '最終版の入力' : '不足の確認';
-  $('modeLabel').textContent = mode === 'b' ? '【入力の画面】' : '【確認の画面】';
+  document.title = mode === 'b'
+    ? '立候補者情報の入力（確認用ツール）'
+    : '選管への確認（書き込み用ツール）';
+  $('modeLabel').textContent = mode === 'b'
+    ? '【立候補者情報の入力｜確認用ツール】'
+    : '【選管への確認｜書き込み用ツール】';
   (mode === 'b' ? $('linkB') : $('linkA')).classList.add('current');
   $('linkA').href = modeHref('a');
   $('linkB').href = modeHref('b');
   $('bannerText').textContent = hasGas
     ? '保存先は、このスプレッドシートの台帳です。切れている間はこのパソコンにも残します。'
-    : '試作です。保存先はこのパソコンの中だけです。確認の画面で印を書いてから、入力の画面を開きます。';
+    : '試作です。保存先はこのパソコンの中だけです。'
+      + '先に「選管への確認」で印を書き、次に「立候補者情報の入力」で欄に入れます。';
   $('empty').textContent = '上の「PDFを開く」で資料を表示します。';
 
   MASTERS.forEach(function (name) {
@@ -159,6 +168,7 @@
     }).then(function (opened) {
       pdfDoc = opened.doc;
       fileRec = takeFile(opened.hash, fileName, pdfDoc.numPages);
+      migrateRowFields();
       undoStack = readUndo(opened.hash);
       selectedId = null;
       locked = false;
@@ -210,6 +220,7 @@
     fileRec.updatedAt = file.updatedAt || 0;
     fileRec.pins = remote.pins || [];
     fileRec.rows = remote.rows || [];
+    migrateRowFields();
     writeStoreFile();
   }
 
@@ -564,10 +575,31 @@
         if (row.field === '年齢') updateAgeHint(row);
       });
     }
-    var value = document.createElement('input');
-    value.className = 'value';
-    value.value = row.value || '';
-    value.placeholder = '内容';
+    var value;
+    var choices = VALUE_CHOICES[row.field];
+    if (choices) {
+      value = document.createElement('select');
+      value.className = 'value';
+      choices.forEach(function (choice) {
+        var opt = document.createElement('option');
+        opt.value = choice;
+        opt.textContent = choice === '' ? '（空欄）' : choice;
+        value.appendChild(opt);
+      });
+      if (row.value && choices.indexOf(row.value) === -1) {
+        var custom = document.createElement('option');
+        custom.value = row.value;
+        custom.textContent = row.value;
+        value.appendChild(custom);
+      }
+      value.value = row.value || '';
+    } else {
+      value = document.createElement('input');
+      value.className = 'value';
+      value.type = 'text';
+      value.value = row.value || '';
+      value.placeholder = '内容';
+    }
     value.dataset.row = row.id;
     value.dataset.part = 'value';
     value.dataset.order = String(row.order);
@@ -585,7 +617,7 @@
         showToast('消しました');
       });
     }
-    value.addEventListener('input', function () {
+    function onValueInput() {
       clearIfEmptied(row, 'value', value);
       row.value = value.value;
       if (row.field === '年齢') row.manual = !!row.value;
@@ -593,7 +625,9 @@
       persist();
       if (row.field === '生年月日' || (row.field === '年齢' && !row.manual)) syncAge(row.order);
       if (row.field === '年齢') updateAgeHint(row);
-    });
+    }
+    value.addEventListener('input', onValueInput);
+    value.addEventListener('change', onValueInput);
     value.addEventListener('keydown', function (ev) {
       if (ev.key !== 'Enter') return;
       ev.preventDefault();
@@ -629,8 +663,15 @@
   function focusEntryStart() {
     if (mode !== 'b' || locked || !fileRec || entryFocusedFor === fileRec.hash) return;
     entryFocusedFor = fileRec.hash;
-    var first = $('orders') && $('orders').querySelector('input.value');
+    var first = $('orders') && $('orders').querySelector('input.value, select.value');
     if (first) first.focus();
+  }
+
+  function migrateRowFields() {
+    if (!fileRec) return;
+    fileRec.rows.forEach(function (row) {
+      if (row.field === '新現元別') row.field = '新現元';
+    });
   }
 
   function ensureOrder(order) {
@@ -961,8 +1002,8 @@
       $('lock').hidden = false;
       $('lock').innerHTML =
         '確認が終わっていません。<br>' +
-        '<a href="?mode=a">確認の画面</a>で<strong>同じPDF</strong>を開き、「確認完了」にしてから、' +
-        '入力の画面でもう一度同じPDFを開いてください。';
+        '<a href="?mode=a">選管への確認</a>で<strong>同じPDF</strong>を開き、「確認完了」にしてから、' +
+        '「立候補者情報の入力」でもう一度同じPDFを開いてください。';
       return true;
     } else if (fileRec.status === '入力完了') {
       message = '入力完了です';
