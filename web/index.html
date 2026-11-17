@@ -265,7 +265,6 @@
     <span id="status"></span>
     <span id="unref" class="bonly"></span>
     <span id="saveState"></span>
-    <button type="button" id="undo" disabled>元に戻す</button>
     <button type="button" id="saveBtn">ここまで保存</button>
     <button type="button" id="completeA" class="aonly primary">確認完了</button>
     <button type="button" id="reviewBtn" class="bonly primary">確認する</button>
@@ -364,6 +363,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=12"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

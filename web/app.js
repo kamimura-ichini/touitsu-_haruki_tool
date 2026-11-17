@@ -61,7 +61,6 @@
   });
 
   var DEMO_PDFS = [
-    { label: '王寺町（サンプル）', path: 'sample.pdf', name: '告示432王寺町議会議員選挙_21658_42184.pdf' },
     { label: 'デモ 298', path: 'demo/298-23737-45159.pdf', name: '告示298_23737_45159.pdf' },
     { label: 'デモ 359', path: 'demo/359-23924-45463.pdf', name: '告示359_23924_45463.pdf' },
     { label: 'デモ 384', path: 'demo/384-24018-45557.pdf', name: '告示384_24018_45557.pdf' }
@@ -96,7 +95,6 @@
   $('next').addEventListener('click', function () { if (pdfDoc && currentPage < pdfDoc.numPages) { currentPage += 1; renderPage(); } });
   $('zoomOut').addEventListener('click', function () { scale = Math.max(0.5, scale - 0.15); renderPage(); });
   $('zoomIn').addEventListener('click', function () { scale = Math.min(2.5, scale + 0.15); renderPage(); });
-  $('undo').addEventListener('click', undo);
   $('toastUndo').addEventListener('click', function () { hideToast(); undo(); });
   $('saveBtn').addEventListener('click', function () { persist(true); });
   $('completeA').addEventListener('click', completeA);
@@ -1025,7 +1023,6 @@
     $('status').textContent = fileRec ? fileRec.status : '';
     $('fileName').textContent = fileRec ? fileRec.fileName : 'PDFが未選択';
     $('unref').textContent = fileRec && mode === 'b' ? '未反映 ' + unreflected() + '件' : '';
-    $('undo').disabled = !undoStack.length || locked;
     var editing = !locked && !!fileRec;
     $('completeA').disabled = !editing;
     $('reviewBtn').disabled = !editing;
@@ -1074,7 +1071,6 @@
     undoStack.push(snap);
     if (undoStack.length > 20) undoStack.shift();
     saveUndo();
-    $('undo').disabled = false;
   }
 
   function undo() {
