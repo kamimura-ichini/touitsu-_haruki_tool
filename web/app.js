@@ -583,7 +583,7 @@
       choices.forEach(function (choice) {
         var opt = document.createElement('option');
         opt.value = choice;
-        opt.textContent = choice === '' ? '（空欄）' : choice;
+        opt.textContent = choice === '' ? '選択してください' : choice;
         value.appendChild(opt);
       });
       if (row.value && choices.indexOf(row.value) === -1) {
