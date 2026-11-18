@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>擦り合わせ：工程03〜06 作業・引き渡し</title>
+  <style>
+    :root {
+      --bg: #f6f6f7;
+      --card: #fff;
+      --text: #1a1a1a;
+      --muted: #5c5c5c;
+      --border: #ddd;
+      --blue: #e8f0fe;
+      --purple: #f3e8fd;
+      --orange: #fff3e6;
+      --accent: #2563eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.5;
+      max-width: 960px;
+      margin-inline: auto;
+    }
+    h1 { font-size: 1.25rem; font-weight: 600; margin: 0 0 4px; }
+    .lead { color: var(--muted); font-size: 0.875rem; margin: 0 0 16px; }
+  </style>
+</head>
+<body>
+  <h1>擦り合わせ：工程03〜06（外注テスト・資料ライン）</h1>
+  <p class="lead">タブで「引き渡し」「工程別作業」「未決事項」を切り替え。詳細・合意記録は同梱の Markdown（擦り合わせ_工程03-06_外注資料フロー.md）を参照。</p>
+  <p class="lead"><a href="擦り合わせ_工程03-06_外注資料フロー.md">→ Markdown版（印刷・議事録用）</a></p>
+
+  <nav id="tabs" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px"></nav>
+  <main id="main"></main>
+
+  <script>
+    const DATA = {
+      handoffs: [
+        { id: "H1", from: "工程02", to: "03③・06", what: "入力仕様・CSV・サンプル", done: "最新版である", exc: "変更は加藤経由" },
+        { id: "H4", from: "03③", to: "外注", what: "テスト資料・仕様・CSV・マスタ・期限", done: "受領回答", exc: "判読不能は*" },
+        { id: "H6", from: "03⑥", to: "03⑧", what: "チェック結果シート", done: "ミス集計完了", exc: "CSV直接修正しない" },
+        { id: "H10", from: "04⑧", to: "05①", what: "PDF・加工指示・電話回答", done: "最新版・指示明確", exc: "NHKは別途" },
+        { id: "H12", from: "05⑦", to: "06", what: "外注用フォルダ・件数", done: "未確認PDFなし", exc: "リネーム方針共有" },
+        { id: "H13", from: "06", to: "外注", what: "Drive・依頼（Chatwork等）", done: "受領確認", exc: "訂正は段階別" }
+      ],
+      processes: {
+        "03": {
+          title: "工程03 外注テスト",
+          tone: "var(--purple)",
+          steps: [
+            { n: "①", who: "準備担当", task: "2023資料選定（6選挙・50〜100名）" },
+            { n: "②", who: "準備担当", task: "正解データSS（外注非共有）" },
+            { n: "③", who: "加藤", task: "外注へ資料パック・期限・Wチェック報告依頼" },
+            { n: "④", who: "外注", task: "入力・Wチェック・納品・実績シート" },
+            { n: "⑤", who: "イチニ", task: "形式・件数・実績記入確認" },
+            { n: "⑥", who: "イチニ", task: "正解照合・ミス記録" },
+            { n: "⑦", who: "検品+システム部", task: "STG取込（本番不可）" },
+            { n: "⑧", who: "内山MG", task: "評価・振り返り・移行判断" }
+          ]
+        },
+        "04": {
+          title: "工程04 受付・確認",
+          tone: "var(--blue)",
+          steps: [
+            { n: "①", who: "DB", task: "自動出力SS確認" },
+            { n: "②", who: "DB", task: "info等・訂正版" },
+            { n: "③④", who: "DB", task: "HP巡回・取得保存" },
+            { n: "⑤⑥", who: "DB", task: "PDF内容・構成→加工要否" },
+            { n: "⑦", who: "DB→電話", task: "不備・電話指示管理" },
+            { n: "⑧", who: "DB", task: "05/NHKへ引継ぎ" },
+            { n: "⑨", who: "加藤・DB", task: "訂正資料（段階別対応）" }
+          ]
+        },
+        "05": {
+          title: "工程05 加工・送付準備",
+          tone: "var(--blue)",
+          steps: [
+            { n: "①", who: "加工", task: "04引継ぎ確認" },
+            { n: "②③", who: "加工", task: "印刷除外・赤入れ・×印" },
+            { n: "④", who: "スキャン", task: "Drive自動保存" },
+            { n: "⑤", who: "検品", task: "PDF検品（加工と別人推奨）" },
+            { n: "⑥⑦", who: "Drive", task: "外注フォルダ→06引継ぎ" }
+          ]
+        },
+        "06": {
+          title: "工程06 共有・入力依頼",
+          tone: "var(--orange)",
+          steps: [
+            { n: "準備", who: "出荷管理", task: "外注管理表" },
+            { n: "共有", who: "共有担当", task: "Drive権限・旧版除外" },
+            { n: "依頼", who: "加藤", task: "Chatwork等で入力依頼・受領確認" },
+            { n: "実施", who: "外注", task: "入力・Wチェック・CSV納品" }
+          ]
+        }
+      },
+      undecided: [
+        "Wチェック正式方式（ベリファイ vs 目視）",
+        "工程03〜06の要割当担当者",
+        "infoメール確認の運用目的",
+        "自動 vs 手動取得（専用ラベル）",
+        "PDFリネーム（DB vs 外注）",
+        "作業シート分割単位",
+        "訂正後の再納品条件・期限"
+      ]
+    };
+
+    const panels = {
+      overview: () => `
+        <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <strong>本番ライン</strong>
+          <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:12px 0">
+            <span style="background:var(--blue);padding:8px 12px;border-radius:6px;font-size:0.875rem">04 受付</span>
+            <span>→</span>
+            <span style="background:var(--blue);padding:8px 12px;border-radius:6px;font-size:0.875rem">05 加工</span>
+            <span>→</span>
+            <span style="background:var(--blue);padding:8px 12px;border-radius:6px;font-size:0.875rem">06 共有</span>
+            <span>→</span>
+            <span style="background:var(--orange);padding:8px 12px;border-radius:6px;font-size:0.875rem">外注 入力</span>
+          </div>
+          <div style="background:var(--purple);padding:12px;border-radius:6px;font-size:0.875rem;margin-top:8px">
+            <strong>並行：工程03</strong> — 2023資料でテスト → ⑧で本番移行可否
+          </div>
+        </div>`,
+      handoffs: () => {
+        const rows = DATA.handoffs.map(h => `
+          <tr>
+            <td>${h.id}</td>
+            <td>${h.from}</td>
+            <td>${h.to}</td>
+            <td>${h.what}</td>
+            <td>${h.done}</td>
+            <td style="font-size:0.8125rem;color:var(--muted)">${h.exc}</td>
+          </tr>`).join("");
+        return `<div style="overflow-x:auto;background:var(--card);border:1px solid var(--border);border-radius:8px">
+          <table style="width:100%;border-collapse:collapse;font-size:0.875rem">
+            <thead><tr style="border-bottom:1px solid var(--border);text-align:left">
+              <th style="padding:10px">ID</th><th style="padding:10px">From</th><th style="padding:10px">To</th>
+              <th style="padding:10px">渡すもの</th><th style="padding:10px">完了条件</th><th style="padding:10px">例外</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <p style="font-size:0.8125rem;color:var(--muted)">全13件は Markdown §4 を参照</p>`;
+      },
+      work: (key) => {
+        const p = DATA.processes[key];
+        const items = p.steps.map(s => `
+          <li style="display:flex;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);list-style:none;margin:0">
+            <span style="flex-shrink:0;width:2rem;height:2rem;border-radius:50%;background:var(--bg);display:flex;align-items:center;justify-content:center;font-size:0.75rem;font-weight:500">${s.n}</span>
+            <div><span style="font-size:0.75rem;color:var(--muted)">${s.who}</span><br>${s.task}</div>
+          </li>`).join("");
+        return `<div style="background:${p.tone};padding:12px 16px;border-radius:8px 8px 0 0;font-weight:600">${p.title}</div>
+          <ul style="background:var(--card);border:1px solid var(--border);border-top:none;border-radius:0 0 8px 8px;padding:0 16px;margin:0">${items}</ul>`;
+      },
+      open: () => {
+        const items = DATA.undecided.map((t, i) => `
+          <label style="display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);font-size:0.875rem;cursor:pointer">
+            <input type="checkbox" data-undecided="${i}" /> ${t}
+          </label>`).join("");
+        return `<div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:16px">
+          <p style="margin:0 0 8px;font-size:0.875rem">会議で決めたらチェック（ブラウザにのみ保存）</p>
+          ${items}
+        </div>`;
+      }
+    };
+
+    const tabDefs = [
+      { id: "overview", label: "全体像" },
+      { id: "handoffs", label: "引き渡し（抜粋）" },
+      { id: "03", label: "工程03" },
+      { id: "04", label: "工程04" },
+      { id: "05", label: "工程05" },
+      { id: "06", label: "工程06" },
+      { id: "open", label: "未決チェック" }
+    ];
+
+    let current = "overview";
+    const tabsEl = document.getElementById("tabs");
+    const mainEl = document.getElementById("main");
+
+    function render() {
+      tabsEl.innerHTML = "";
+      tabDefs.forEach(t => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.textContent = t.label;
+        btn.style.cssText = `padding:8px 12px;border-radius:6px;border:1px solid var(--border);background:${current === t.id ? "var(--card)" : "transparent"};font-weight:${current === t.id ? "500" : "400"};cursor:pointer`;
+        btn.onclick = () => { current = t.id; render(); };
+        tabsEl.appendChild(btn);
+      });
+      if (current === "overview") mainEl.innerHTML = panels.overview();
+      else if (current === "handoffs") mainEl.innerHTML = panels.handoffs();
+      else if (current === "open") {
+        mainEl.innerHTML = panels.open();
+        bindChecks();
+      } else if (DATA.processes[current]) mainEl.innerHTML = panels.work(current);
+    }
+
+    function bindChecks() {
+      const key = "chihou-sen-undecided-v1";
+      let saved = {};
+      try { saved = JSON.parse(localStorage.getItem(key) || "{}"); } catch (_) {}
+      document.querySelectorAll("[data-undecided]").forEach(cb => {
+        const i = cb.getAttribute("data-undecided");
+        cb.checked = !!saved[i];
+        cb.onchange = () => {
+          saved[i] = cb.checked;
+          localStorage.setItem(key, JSON.stringify(saved));
+        };
+      });
+    }
+
+    render();
+  </script>
+</body>
+</html>

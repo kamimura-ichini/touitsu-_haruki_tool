@@ -11,6 +11,7 @@
     '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）', '性別',
     '党派', '職業', '生年月日', '新現元', '年齢'
   ];
+  var DEFAULT_CANDIDATE_SLOTS = 10;
   var VALUE_CHOICES = {
     '性別': ['', '男', '女'],
     '新現元': ['', '新', '現', '元']
@@ -94,8 +95,8 @@
   $('completeB').addEventListener('click', completeB);
   $('addOrder').addEventListener('click', function () {
     if (!ensureFile()) return;
-    var next = 1;
-    fileRec.rows.forEach(function (row) { if (row.order >= next) next = row.order + 1; });
+    var next = candidateSlotCount() + 1;
+    fileRec.candidateSlots = next;
     ensureOrder(next);
     markEditing();
     persist();
@@ -672,6 +673,30 @@
     fileRec.rows.forEach(function (row) {
       if (row.field === '新現元別') row.field = '新現元';
     });
+    migrateCandidateSlots();
+  }
+
+  function maxOrderInRows() {
+    var max = 0;
+    if (!fileRec) return 0;
+    fileRec.rows.forEach(function (row) {
+      if (row.order > max) max = row.order;
+    });
+    return max;
+  }
+
+  function migrateCandidateSlots() {
+    if (!fileRec || fileRec.candidateSlots != null) return;
+    var max = maxOrderInRows();
+    fileRec.candidateSlots = max > 1 ? max : DEFAULT_CANDIDATE_SLOTS;
+  }
+
+  function candidateSlotCount() {
+    if (!fileRec) return DEFAULT_CANDIDATE_SLOTS;
+    migrateCandidateSlots();
+    var fromRows = maxOrderInRows();
+    var slots = fileRec.candidateSlots;
+    return Math.max(slots, fromRows, 1);
   }
 
   function ensureOrder(order) {
@@ -894,6 +919,7 @@
       if (choice !== 'secondary') return;
       snapshot();
       fileRec.rows = fileRec.rows.filter(function (row) { return row.order === 1; });
+      fileRec.candidateSlots = 1;
       markEditing();
       persist();
       renderForm();
@@ -925,10 +951,17 @@
   }
 
   function orders() {
-    var set = {};
-    (fileRec ? fileRec.rows : []).forEach(function (row) { set[row.order] = true; });
-    if (!Object.keys(set).length) set[1] = true;
-    return Object.keys(set).map(Number).sort(function (a, b) { return a - b; });
+    if (!fileRec) return [1];
+    if (mode !== 'b') {
+      var set = {};
+      fileRec.rows.forEach(function (row) { set[row.order] = true; });
+      if (!Object.keys(set).length) set[1] = true;
+      return Object.keys(set).map(Number).sort(function (a, b) { return a - b; });
+    }
+    var n = candidateSlotCount();
+    var list = [];
+    for (var i = 1; i <= n; i++) list.push(i);
+    return list;
   }
 
   function completeA() {
@@ -1126,6 +1159,7 @@
       bDoneAt: '',
       pins: [],
       rows: [],
+      candidateSlots: DEFAULT_CANDIDATE_SLOTS,
       updatedAt: 0
     };
   }
