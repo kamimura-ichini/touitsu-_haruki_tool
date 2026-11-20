@@ -104,7 +104,7 @@
     }
     .page-wrap { position: relative; margin: 0 auto 24px; width: fit-content; }
     canvas { display: block; background: #fff; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
-    #pinLayer { position: absolute; inset: 0; }
+    #pinLayer, .pinLayer { position: absolute; inset: 0; }
     .pin {
       position: absolute;
       width: 28px;
@@ -345,18 +345,15 @@
     </aside>
     <div class="stage">
       <div class="pager" id="pager" hidden>
-        <button type="button" id="prev">前のページ</button>
         <span id="pageLabel"></span>
-        <button type="button" id="next">次のページ</button>
         <button type="button" id="zoomOut">－</button>
         <span id="zoomLabel"></span>
         <button type="button" id="zoomIn">＋</button>
+        <button type="button" id="rotate">回す</button>
+        <span id="rotateLabel"></span>
       </div>
       <div id="empty"></div>
-      <div class="page-wrap" id="pageWrap" hidden>
-        <canvas id="pdf"></canvas>
-        <div id="pinLayer"></div>
-      </div>
+      <div id="pages" hidden></div>
     </div>
     <aside id="checksPanel" class="bonly sheet">
       <div class="sheetResize"></div>
@@ -434,6 +431,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=35"></script>
+  <script src="app.js?v=37"></script>
 </body>
 </html>
