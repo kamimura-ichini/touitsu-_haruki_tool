@@ -216,6 +216,7 @@
     locked = checkLock();
     updateChrome();
     return renderPage().then(renderSide).then(function () {
+      if (mode === 'a' && fileRec && fileRec.status === '確認完了') offerReeditA();
       if (mode === 'b' && fileRec && fileRec.status === '入力完了') offerReedit();
     });
   }
@@ -1393,10 +1394,22 @@
         if (choice === 'secondary') done();
       });
     } else {
-      ask('確認完了にします。このあと印は直せません。', '確認完了', '戻る').then(function (choice) {
+      ask('確認完了にします。', '確認完了', '戻る').then(function (choice) {
         if (choice === 'primary') done();
       });
     }
+  }
+
+  function offerReeditA() {
+    ask('確認完了していますが、修正しますか？', 'はい', 'いいえ').then(function (choice) {
+      if (choice !== 'primary' || !fileRec || fileRec.status !== '確認完了') return;
+      fileRec.status = '確認の途中';
+      fileRec.aName = $('name').value.trim();
+      persist();
+      locked = checkLock();
+      updateChrome();
+      renderSide();
+    });
   }
 
   function offerReedit() {
