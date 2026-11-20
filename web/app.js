@@ -50,10 +50,10 @@
   document.body.classList.add(mode === 'b' ? 'mode-b' : 'mode-a');
   document.title = mode === 'b'
     ? '立候補者情報の入力（確認用ツール）'
-    : '選管への確認（書き込み用ツール）';
+    : '選管への確認（電話・赤入れツール）';
   $('modeLabel').textContent = mode === 'b'
     ? '【立候補者情報の入力｜確認用ツール】'
-    : '【選管への確認｜書き込み用ツール】';
+    : '【選管への確認｜電話・赤入れツール】';
   (mode === 'b' ? $('linkB') : $('linkA')).classList.add('current');
   $('linkA').href = modeHref('a');
   $('linkB').href = modeHref('b');
