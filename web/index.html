@@ -329,7 +329,7 @@
     <span id="modeLabel"></span>
     <span id="bannerText"></span>
     <a id="linkA" href="?mode=a">選管への確認（電話・赤入れツール）</a>
-    <a id="linkB" href="?mode=b">立候補者情報の入力（確認用ツール）</a>
+    <a id="linkB" href="?mode=b">立候補者情報の入力（パンチャー入力）</a>
   </div>
   <div id="bulkBar">
     <strong>一括確認</strong>
@@ -434,6 +434,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=34"></script>
+  <script src="app.js?v=35"></script>
 </body>
 </html>
