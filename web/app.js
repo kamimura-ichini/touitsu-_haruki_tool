@@ -198,7 +198,12 @@
 
   function openBuffer(buf, fileName) {
     sha256(buf).then(function (hash) {
-      return pdfjsLib.getDocument({ data: new Uint8Array(buf) }).promise.then(function (doc) {
+      return pdfjsLib.getDocument({
+        data: new Uint8Array(buf),
+        cMapUrl: new URL('lib/cmaps/', location.href).href,
+        cMapPacked: true,
+        standardFontDataUrl: new URL('lib/standard_fonts/', location.href).href
+      }).promise.then(function (doc) {
         return { hash: hash, doc: doc };
       });
     }).then(function (opened) {
