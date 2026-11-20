@@ -76,7 +76,7 @@ function loadState(payload) {
 function saveA(payload) {
   return withLock_(function () {
     var existing = readFile_(payload.hash);
-    var blocked = blockA_(existing, payload.name);
+    var blocked = blockA_(existing, payload.name, payload.status);
     if (blocked) throw new Error(blocked);
     var now = Date.now();
     var status = payload.status === '確認完了' ? '確認完了' : '確認の途中';
@@ -130,9 +130,10 @@ function saveB(payload) {
   });
 }
 
-function blockA_(file, name) {
+function blockA_(file, name, nextStatus) {
   if (!file) return '';
-  if (file.status === '確認完了' || file.status === '入力の途中' || file.status === '入力完了') {
+  var reopening = file.status === '確認完了' && nextStatus === '確認の途中';
+  if (!reopening && (file.status === '確認完了' || file.status === '入力の途中' || file.status === '入力完了')) {
     return '確認完了です。このファイルは入力担当が開きます。';
   }
   if (file.status === '確認の途中' && file.aName && file.aName !== name) {
