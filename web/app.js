@@ -1095,7 +1095,14 @@
         return row.order === order && row.field === name;
       });
       if (exists) return;
-      fileRec.rows.push({ id: uid(), order: order, field: name, value: '', fixed: true });
+      fileRec.rows.push({
+        id: uid(),
+        order: order,
+        field: name,
+        value: name === '届け出番号' ? String(order) : '',
+        fixed: true,
+        filingDefaulted: name === '届け出番号'
+      });
       added = true;
     });
     var used = {};
@@ -1107,6 +1114,11 @@
       if (!hit) return;
       used[hit.id] = true;
       hit.fixed = true;
+      if (hit.field === '届け出番号' && !hit.filingDefaulted) {
+        hit.filingDefaulted = true;
+        if (!String(hit.value || '').trim()) hit.value = String(order);
+        added = true;
+      }
       fixedRows.push(hit);
     });
     var extras = fileRec.rows.filter(function (row) {
