@@ -8,12 +8,17 @@
     '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）'
   ];
   var FIXED_FIELDS = [
-    '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）', '性別',
+    '届け出番号', '届け出年月日', '候補者名', 'ふりがな', '通称（ふりがな）', '性別',
     '党派', '職業', '生年月日', '新現元', '年齢'
   ];
+  var BULK_FIELDS = ['ふりがな', '年齢', '性別', '党派'];
   var DEFAULT_CANDIDATE_SLOTS = 10;
   var VALUE_CHOICES = {
-    '性別': ['', '男', '女'],
+    '性別': [
+      { value: '男', label: '男' },
+      { value: '女', label: '女' },
+      { value: '', label: '空白' }
+    ],
     '新現元': ['', '新', '現', '元']
   };
   var ERAS = [
@@ -83,14 +88,22 @@
   $('saveBtn').addEventListener('click', function () { persist(true); });
   $('completeA').addEventListener('click', completeA);
   $('reviewBtn').addEventListener('click', function () {
+    if (!ensureFile()) {
+      if (!fileRec) showToast('PDFを開いてください');
+      return;
+    }
     document.body.classList.remove('collapsed');
     document.body.classList.add('reviewing');
     $('review').hidden = false;
+    $('bulkPanel').hidden = true;
+    $('formHead').textContent = '入力内容の確認';
+    $('formPanel').scrollTop = 0;
     renderReview();
   });
   $('backEdit').addEventListener('click', function () {
     document.body.classList.remove('reviewing');
     $('review').hidden = true;
+    $('formHead').textContent = '入力欄（ドラッグで移動）';
   });
   $('completeB').addEventListener('click', completeB);
   $('addOrder').addEventListener('click', function () {
@@ -106,13 +119,23 @@
   });
   setupPanel();
   $('resetOrder').addEventListener('click', resetOrders);
-  $('showQuestion').addEventListener('click', function () { $('questionBox').hidden = false; $('question').focus(); });
   $('closeCard').addEventListener('click', function () { $('card').hidden = true; });
   $('deletePin').addEventListener('click', deleteSelectedPin);
   $('answer').addEventListener('focus', function () { $('answer').dataset.before = selectedPin() ? selectedPin().answer : ''; });
-  $('question').addEventListener('focus', function () { $('question').dataset.before = selectedPin() ? selectedPin().question : ''; });
   $('answer').addEventListener('input', function () { onPinText('answer', $('answer')); });
-  $('question').addEventListener('input', function () { onPinText('question', $('question')); });
+  $('pinUnsure').addEventListener('change', function () {
+    var pin = selectedPin();
+    if (!pin || locked) {
+      $('pinUnsure').checked = !!(pin && pin.unsure);
+      return;
+    }
+    pin.unsure = $('pinUnsure').checked;
+    markEditing();
+    persist();
+    renderPinList();
+    renderChecks();
+  });
+  setupBulk();
 
   $('pinLayer').addEventListener('click', function (ev) {
     if (mode !== 'a' || locked || !fileRec) return;
@@ -128,6 +151,7 @@
       y: pos.y,
       question: '',
       answer: '',
+      unsure: false,
       reflected: false
     };
     fileRec.pins.push(pin);
@@ -262,7 +286,7 @@
       btn.textContent = String(pin.no);
       btn.style.left = (pin.x * 100) + '%';
       btn.style.top = (pin.y * 100) + '%';
-      btn.title = pin.answer || pin.question || '';
+      btn.title = pin.answer || (pin.unsure ? '自信がない' : '');
       layer.appendChild(btn);
       bindPin(btn, pin);
     });
@@ -340,8 +364,8 @@
     $('card').hidden = false;
     $('cardTitle').textContent = '印 ' + pin.no;
     $('answer').value = pin.answer || '';
-    $('question').value = pin.question || '';
-    $('questionBox').hidden = !pin.question;
+    $('pinUnsure').checked = !!pin.unsure;
+    $('pinUnsure').disabled = locked;
     if (x != null) placeCard(x + 16, y + 16);
     else if (!$('card').style.left) placeCard(24, 80);
     $('answer').focus();
@@ -428,7 +452,7 @@
       var title = document.createElement('b');
       title.textContent = pin.no + '  p' + pin.page;
       var small = document.createElement('small');
-      small.textContent = pin.answer || (pin.question ? '（聞くことのみ）' : '（空）');
+      small.textContent = (pin.answer || '（空）') + (pin.unsure ? '  自信がない' : '');
       btn.appendChild(title);
       btn.appendChild(small);
       btn.addEventListener('click', function () {
@@ -464,8 +488,8 @@
       title.textContent = pin.no + '  p' + pin.page;
       var small = document.createElement('small');
       var lines = [];
-      if (pin.question) lines.push('聞くこと: ' + pin.question);
       lines.push('正しい内容: ' + (pin.answer || '（空）'));
+      if (pin.unsure) lines.push('自信がない');
       small.textContent = lines.join('\n');
       small.style.whiteSpace = 'pre-wrap';
       btn.appendChild(title);
@@ -571,39 +595,10 @@
         if (row.field === '年齢') row.manual = false;
         markEditing();
         persist();
-        updateDup(line, row);
-        if (row.field === '生年月日' || row.field === '年齢') syncAge(row.order);
-        if (row.field === '年齢') updateAgeHint(row);
+        renderForm();
       });
     }
-    var value;
-    var choices = VALUE_CHOICES[row.field];
-    if (choices) {
-      value = document.createElement('select');
-      value.className = 'value';
-      choices.forEach(function (choice) {
-        var opt = document.createElement('option');
-        opt.value = choice;
-        opt.textContent = choice === '' ? '選択してください' : choice;
-        value.appendChild(opt);
-      });
-      if (row.value && choices.indexOf(row.value) === -1) {
-        var custom = document.createElement('option');
-        custom.value = row.value;
-        custom.textContent = row.value;
-        value.appendChild(custom);
-      }
-      value.value = row.value || '';
-    } else {
-      value = document.createElement('input');
-      value.className = 'value';
-      value.type = 'text';
-      value.value = row.value || '';
-      value.placeholder = '内容';
-    }
-    value.dataset.row = row.id;
-    value.dataset.part = 'value';
-    value.dataset.order = String(row.order);
+    var value = buildValueControl(row);
     var del = null;
     if (!row.fixed) {
       del = document.createElement('button');
@@ -618,32 +613,24 @@
         showToast('消しました');
       });
     }
-    function onValueInput() {
-      clearIfEmptied(row, 'value', value);
-      row.value = value.value;
-      if (row.field === '年齢') row.manual = !!row.value;
+    var unsure = document.createElement('label');
+    unsure.className = 'unsure';
+    var unsureBox = document.createElement('input');
+    unsureBox.type = 'checkbox';
+    unsureBox.checked = !!row.unsure;
+    unsureBox.disabled = locked;
+    unsureBox.dataset.row = row.id;
+    unsureBox.addEventListener('change', function () {
+      row.unsure = unsureBox.checked;
       markEditing();
       persist();
-      if (row.field === '生年月日' || (row.field === '年齢' && !row.manual)) syncAge(row.order);
-      if (row.field === '年齢') updateAgeHint(row);
-    }
-    value.addEventListener('input', onValueInput);
-    value.addEventListener('change', onValueInput);
-    value.addEventListener('keydown', function (ev) {
-      if (ev.key !== 'Enter') return;
-      ev.preventDefault();
-      var same = orderedRows(row.order);
-      var idx = same.findIndex(function (r) { return r.id === row.id; });
-      if (idx === same.length - 1) {
-        if (!row.fixed) addRow(row.order, true);
-      } else {
-        var next = document.querySelector('[data-row="' + same[idx + 1].id + '"][data-part="value"]');
-        if (next) next.focus();
-      }
+      reflectBulkUnsure(row);
     });
-    value.addEventListener('focus', function () { value.dataset.before = row.value || ''; });
+    unsure.appendChild(unsureBox);
+    unsure.appendChild(document.createTextNode('入力内容がわからない・不安'));
     inputs.appendChild(field);
     inputs.appendChild(value);
+    inputs.appendChild(unsure);
     if (del) inputs.appendChild(del);
     line.appendChild(inputs);
     var hint = document.createElement('div');
@@ -659,6 +646,408 @@
       updateAgeHint(row);
     }
     return line;
+  }
+
+  function buildValueControl(row) {
+    var choices = VALUE_CHOICES[row.field];
+    if (!choices) {
+      var input = document.createElement('input');
+      input.className = 'value';
+      input.type = 'text';
+      input.value = row.value || '';
+      input.placeholder = '内容';
+      tagValue(input, row);
+      input.addEventListener('focus', function () { input.dataset.before = row.value || ''; });
+      input.addEventListener('input', function () {
+        clearIfEmptied(row, 'value', input);
+        commitRowValue(row, input.value);
+      });
+      input.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        focusNextRow(row);
+      });
+      return input;
+    }
+    var wrap = document.createElement('div');
+    wrap.className = 'radios value';
+    tagValue(wrap, row);
+    choiceList(choices, row.value).forEach(function (choice) {
+      var value = choiceValue(choice);
+      wrap.appendChild(radioLabel('choice-' + row.id, value, choiceLabel(choice), row.value === value, function () {
+        commitRowValue(row, value);
+      }, function () { focusNextRow(row); }));
+    });
+    return wrap;
+  }
+
+  function tagValue(el, row) {
+    el.dataset.row = row.id;
+    el.dataset.part = 'value';
+    el.dataset.order = String(row.order);
+  }
+
+  function choiceValue(choice) {
+    return choice && typeof choice === 'object' ? choice.value : choice;
+  }
+
+  function choiceLabel(choice) {
+    if (choice && typeof choice === 'object') return choice.label;
+    return choice === '' ? '空白' : choice;
+  }
+
+  function choiceList(choices, current) {
+    var list = choices.filter(function (choice) { return choice !== ''; });
+    var known = list.map(choiceValue);
+    if (current && known.indexOf(current) === -1) list.push(current);
+    return list;
+  }
+
+  function radioLabel(name, value, label, checked, onPick, onEnter) {
+    var wrap = document.createElement('label');
+    var radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = name;
+    radio.value = value;
+    radio.checked = !!checked;
+    radio.disabled = locked;
+    radio.addEventListener('change', function () {
+      if (radio.checked) onPick();
+    });
+    radio.addEventListener('keydown', function (ev) {
+      if (ev.key !== 'Enter') return;
+      ev.preventDefault();
+      onEnter();
+    });
+    wrap.appendChild(radio);
+    wrap.appendChild(document.createTextNode(label));
+    return wrap;
+  }
+
+  function commitRowValue(row, next) {
+    row.value = next;
+    if (row.field === '年齢') row.manual = !!String(next || '').trim();
+    markEditing();
+    persist();
+    if (row.field === '生年月日' || (row.field === '年齢' && !row.manual)) syncAge(row.order);
+    if (row.field === '年齢') updateAgeHint(row);
+    reflectBulk(row);
+  }
+
+  function focusNextRow(row) {
+    var same = orderedRows(row.order);
+    var idx = same.findIndex(function (item) { return item.id === row.id; });
+    if (idx === same.length - 1) {
+      if (!row.fixed) addRow(row.order, true);
+      return;
+    }
+    focusValue(document.querySelector('[data-row="' + same[idx + 1].id + '"][data-part="value"]'));
+  }
+
+  function focusValue(el) {
+    if (!el) return;
+    if (el.classList && el.classList.contains('radios')) {
+      var radio = el.querySelector('input:checked') || el.querySelector('input');
+      if (radio) radio.focus();
+      return;
+    }
+    el.focus();
+  }
+
+  function setupBulk() {
+    document.querySelectorAll('[data-bulk]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        if (!ensureFile() || locked) return;
+        openBulk(btn.getAttribute('data-bulk'));
+      });
+    });
+    $('bulkClose').addEventListener('click', function () { $('bulkPanel').hidden = true; });
+  }
+
+  function openBulk(field) {
+    $('bulkTitle').textContent = '一括確認 ' + field;
+    $('bulkPanel').dataset.field = field;
+    $('bulkPanel').hidden = false;
+    renderBulk();
+    focusValue($('bulkBody').querySelector('input, .radios'));
+  }
+
+  function renderBulk() {
+    var field = $('bulkPanel').dataset.field;
+    var body = $('bulkBody');
+    var flowFocus = document.activeElement && document.activeElement.id === 'bulkFlow'
+      ? document.activeElement.selectionStart : null;
+    body.innerHTML = '';
+    if (!field || !fileRec) return;
+    var textMode = !VALUE_CHOICES[field];
+    if (textMode) body.appendChild(bulkModeSwitch());
+    if (textMode && $('bulkPanel').dataset.entry === 'flow') body.appendChild(bulkFlow(field, flowFocus));
+    else {
+      var total = candidateSlotCount();
+      for (var order = 1; order <= total; order++) body.appendChild(bulkLine(order, field));
+    }
+    var add = document.createElement('button');
+    add.type = 'button';
+    add.className = 'bulk-add';
+    add.textContent = '候補者を増やす';
+    add.addEventListener('click', addCandidateSlot);
+    body.appendChild(add);
+  }
+
+  function bulkModeSwitch() {
+    var bar = document.createElement('div');
+    bar.className = 'bulk-switch';
+    var entry = $('bulkPanel').dataset.entry === 'flow' ? 'flow' : 'rows';
+    [['rows', '候補者ごと'], ['flow', '上から入力']].forEach(function (item) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = item[1];
+      if (entry === item[0]) btn.className = 'current';
+      btn.addEventListener('click', function () {
+        $('bulkPanel').dataset.entry = item[0];
+        renderBulk();
+        if (item[0] === 'flow') {
+          var area = $('bulkFlow');
+          if (area) area.focus();
+        }
+      });
+      bar.appendChild(btn);
+    });
+    return bar;
+  }
+
+  function bulkFlow(field, caret) {
+    var box = document.createElement('div');
+    box.className = 'bulk-flow';
+    var note = document.createElement('p');
+    note.className = 'hint';
+    note.textContent = '上から1人1行です。1行目が候補者1です。';
+    var area = document.createElement('textarea');
+    area.id = 'bulkFlow';
+    area.value = flowText(field);
+    var flags = document.createElement('div');
+    var shown = area.value === '' ? 0 : area.value.split('\n').length;
+    area.addEventListener('input', function () {
+      var lines = area.value.split('\n');
+      var prev = shown;
+      shown = lines.length;
+      writeFlow(field, lines, prev);
+      renderFlowFlags(field, flags, lines);
+    });
+    renderFlowFlags(field, flags, area.value === '' ? [] : area.value.split('\n'));
+    box.appendChild(note);
+    box.appendChild(area);
+    box.appendChild(flags);
+    if (caret != null) {
+      setTimeout(function () {
+        area.focus();
+        area.selectionStart = area.selectionEnd = caret;
+      }, 0);
+    }
+    return box;
+  }
+
+  function flowText(field) {
+    var total = candidateSlotCount();
+    var lines = [];
+    var last = 0;
+    for (var order = 1; order <= total; order++) {
+      var row = findBulkRow(order, field);
+      var value = row ? (row.value || '') : '';
+      lines.push(value);
+      if (value) last = order;
+    }
+    if (!last) return '';
+    return lines.slice(0, last).join('\n');
+  }
+
+  function writeFlow(field, lines, previousCount) {
+    var before = candidateSlotCount();
+    if (lines.length > before) {
+      fileRec.candidateSlots = lines.length;
+      if (mode === 'b') {
+        for (var n = before + 1; n <= lines.length; n++) ensureOrder(n);
+      }
+      renderForm();
+    }
+    lines.forEach(function (line, index) {
+      var row = ensureBulkRow(index + 1, field);
+      if (row.value !== line) {
+        row.value = line;
+        if (field === '年齢') row.manual = !!String(line || '').trim();
+        reflectForm(row);
+      }
+    });
+    for (var order = lines.length + 1; order <= previousCount; order++) {
+      var row = findBulkRow(order, field);
+      if (!row || !row.value) continue;
+      row.value = '';
+      if (field === '年齢') row.manual = false;
+      reflectForm(row);
+    }
+    markEditing();
+    persist();
+  }
+
+  function renderFlowFlags(field, flags, lines) {
+    flags.innerHTML = '';
+    var list = lines && lines.length ? lines : [''];
+    list.forEach(function (text, index) {
+      var order = index + 1;
+      var row = findBulkRow(order, field);
+      var line = document.createElement('div');
+      line.className = 'bulk-row';
+      var name = document.createElement('b');
+      name.textContent = '候補者 ' + order;
+      var copied = document.createElement('span');
+      copied.className = 'bulk-copied';
+      copied.textContent = text || '';
+      line.appendChild(name);
+      line.appendChild(copied);
+      line.appendChild(unsureToggle(order, field, row));
+      flags.appendChild(line);
+    });
+  }
+
+  function addCandidateSlot() {
+    if (!ensureFile() || locked) return;
+    var next = candidateSlotCount() + 1;
+    fileRec.candidateSlots = next;
+    if (mode === 'b') ensureOrder(next);
+    markEditing();
+    persist();
+    renderForm();
+    renderBulk();
+  }
+
+  function unsureToggle(order, field, existing) {
+    var label = document.createElement('label');
+    label.className = 'unsure';
+    var box = document.createElement('input');
+    box.type = 'checkbox';
+    box.checked = !!(existing && existing.unsure);
+    box.disabled = locked;
+    box.dataset.bulkOrder = String(order);
+    box.dataset.bulkField = field;
+    box.addEventListener('change', function () {
+      var row = ensureBulkRow(order, field);
+      row.unsure = box.checked;
+      markEditing();
+      persist();
+      reflectForm(row);
+    });
+    label.appendChild(box);
+    label.appendChild(document.createTextNode('自信ない・不明'));
+    return label;
+  }
+
+  function findBulkRow(order, field) {
+    return fileRec.rows.filter(function (row) {
+      return row.order === order && row.field === field;
+    })[0] || null;
+  }
+
+  function ensureBulkRow(order, field) {
+    var found = findBulkRow(order, field);
+    if (found) {
+      found.fixed = true;
+      return found;
+    }
+    var row = { id: uid(), order: order, field: field, value: '', fixed: true };
+    fileRec.rows.push(row);
+    return row;
+  }
+
+  function bulkLine(order, field) {
+    var existing = findBulkRow(order, field);
+    var line = document.createElement('div');
+    line.className = 'bulk-row';
+    var name = document.createElement('b');
+    name.textContent = '候補者 ' + order;
+    line.appendChild(name);
+    var choices = VALUE_CHOICES[field];
+    if (!choices) {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.value = existing ? (existing.value || '') : '';
+      input.dataset.bulkOrder = String(order);
+      input.dataset.bulkField = field;
+      input.addEventListener('input', function () {
+        var row = ensureBulkRow(order, field);
+        input.dataset.row = row.id;
+        commitRowValue(row, input.value);
+        reflectForm(row);
+      });
+      input.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Enter') return;
+        ev.preventDefault();
+        focusValue(document.querySelector('#bulkBody [data-bulk-order="' + (order + 1) + '"]'));
+      });
+      line.appendChild(input);
+      line.appendChild(unsureToggle(order, field, existing));
+      return line;
+    }
+    var wrap = document.createElement('div');
+    wrap.className = 'radios';
+    wrap.dataset.bulkOrder = String(order);
+    wrap.dataset.bulkField = field;
+    choiceList(choices, existing ? existing.value : '').forEach(function (choice) {
+      var value = choiceValue(choice);
+      wrap.appendChild(radioLabel('bulk-' + field + '-' + order, value, choiceLabel(choice), existing && existing.value === value, function () {
+        var row = ensureBulkRow(order, field);
+        commitRowValue(row, value);
+        reflectForm(row);
+      }, function () {
+        focusValue(document.querySelector('#bulkBody [data-bulk-order="' + (order + 1) + '"]'));
+      }));
+    });
+    line.appendChild(wrap);
+    line.appendChild(unsureToggle(order, field, existing));
+    return line;
+  }
+
+  function reflectBulk(row) {
+    if ($('bulkPanel').hidden || $('bulkPanel').dataset.field !== row.field) return;
+    reflectBulkUnsure(row);
+    var area = $('bulkFlow');
+    if (area) {
+      if (area !== document.activeElement) area.value = flowText(row.field);
+      return;
+    }
+    var text = document.querySelector('#bulkBody input[type="text"][data-bulk-order="' + row.order + '"][data-bulk-field="' + row.field + '"]');
+    if (text && text !== document.activeElement && text.value !== (row.value || '')) text.value = row.value || '';
+    var wrap = document.querySelector('#bulkBody .radios[data-bulk-order="' + row.order + '"][data-bulk-field="' + row.field + '"]');
+    if (!wrap) return;
+    wrap.querySelectorAll('input').forEach(function (radio) {
+      radio.checked = radio.value === (row.value || '');
+    });
+  }
+
+  function reflectBulkUnsure(row) {
+    if ($('bulkPanel').hidden || $('bulkPanel').dataset.field !== row.field) return;
+    var box = document.querySelector('#bulkBody .unsure input[data-bulk-order="' + row.order + '"][data-bulk-field="' + row.field + '"]');
+    if (box) box.checked = !!row.unsure;
+  }
+
+  function reflectForm(row) {
+    var text = document.querySelector('#orders input.value[data-row="' + row.id + '"]');
+    if (text && text !== document.activeElement) text.value = row.value || '';
+    var wrap = document.querySelector('#orders .radios[data-row="' + row.id + '"]');
+    if (wrap) {
+      wrap.querySelectorAll('input').forEach(function (radio) {
+        radio.checked = radio.value === (row.value || '');
+      });
+    }
+    var unsure = document.querySelector('#orders .unsure input[data-row="' + row.id + '"]');
+    if (unsure) unsure.checked = !!row.unsure;
+    if (row.field === '年齢') updateAgeHint(row);
+  }
+
+  function hasBulkValue() {
+    if (!fileRec) return false;
+    return fileRec.rows.some(function (row) {
+      return BULK_FIELDS.indexOf(row.field) !== -1 && String(row.value || '').trim();
+    });
   }
 
   function focusEntryStart() {
@@ -740,6 +1129,7 @@
   }
 
   function orderedRows(order) {
+    if (!fileRec) return [];
     return fileRec.rows.filter(function (row) { return row.order === order; });
   }
 
@@ -930,19 +1320,29 @@
   function renderReview() {
     var body = $('reviewBody');
     body.innerHTML = '';
+    if (!fileRec) {
+      body.appendChild(note('PDFを開いてください'));
+      return;
+    }
     orders().forEach(function (order) {
       var h = document.createElement('h3');
       h.textContent = '候補者 ' + order;
       body.appendChild(h);
       var rows = orderedRows(order);
-      if (!rows.length) body.appendChild(note('項目はありません'));
-      rows.forEach(function (row) {
+      var filled = rows.filter(function (row) {
+        return String(row.value || '').trim() || row.unsure;
+      });
+      if (!filled.length) {
+        body.appendChild(note('未入力'));
+        return;
+      }
+      filled.forEach(function (row) {
         var line = document.createElement('div');
         line.className = 'review-item';
         var name = document.createElement('b');
         name.textContent = row.field || '（項目名なし）';
         var val = document.createElement('span');
-        val.textContent = row.value || '';
+        val.textContent = (row.value || '（空）') + (row.unsure ? '  要確認' : '');
         line.appendChild(name);
         line.appendChild(val);
         body.appendChild(line);
@@ -966,7 +1366,7 @@
 
   function completeA() {
     if (!ensureFile()) return;
-    if (!fileRec.pins.length) { showToast('印がありません'); return; }
+    if (!fileRec.pins.length && !hasBulkValue()) { showToast('印も一括確認もありません'); return; }
     var empty = fileRec.pins.filter(function (pin) { return !String(pin.answer || '').trim(); });
     var done = function () {
       fileRec.status = '確認完了';
@@ -1129,7 +1529,7 @@
     if (selectedPin() == null) $('card').hidden = true;
     else {
       $('answer').value = selectedPin().answer || '';
-      $('question').value = selectedPin().question || '';
+      $('pinUnsure').checked = !!selectedPin().unsure;
     }
     drawPins();
     renderSide();
