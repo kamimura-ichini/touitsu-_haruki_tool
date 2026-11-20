@@ -80,10 +80,14 @@
     file.arrayBuffer().then(function (buf) { openBuffer(buf, file.name); });
   });
 
-  $('prev').addEventListener('click', function () { if (currentPage > 1) { currentPage -= 1; renderPage(); } });
-  $('next').addEventListener('click', function () { if (pdfDoc && currentPage < pdfDoc.numPages) { currentPage += 1; renderPage(); } });
   $('zoomOut').addEventListener('click', function () { scale = Math.max(0.5, scale - 0.15); renderPage(); });
   $('zoomIn').addEventListener('click', function () { scale = Math.min(2.5, scale + 0.15); renderPage(); });
+  $('rotate').addEventListener('click', function () {
+    if (!pdfDoc || !fileRec) return;
+    fileRec.rotation = (addedRotation() + 90) % 360;
+    writeStoreFile();
+    fitScale().then(renderPage);
+  });
   $('toastUndo').addEventListener('click', function () { hideToast(); undo(); });
   $('saveBtn').addEventListener('click', function () { persist(true); });
   $('completeA').addEventListener('click', completeA);
@@ -137,16 +141,23 @@
   });
   setupBulk();
 
-  $('pinLayer').addEventListener('click', function (ev) {
+  document.querySelector('.stage').addEventListener('scroll', function () {
+    if (pdfDoc) updatePageLabel();
+  });
+
+  $('pages').addEventListener('click', function (ev) {
     if (mode !== 'a' || locked || !fileRec) return;
-    if (ev.target !== $('pinLayer')) return;
+    var layer = ev.target.closest ? ev.target.closest('.pinLayer') : null;
+    if (!layer || ev.target !== layer) return;
     if (!requireName()) return;
-    var pos = eventRatio(ev);
+    var pageNo = Number(layer.dataset.page);
+    var canvas = layer.parentNode.querySelector('canvas');
+    var pos = toStored(eventRatio(ev, canvas));
     snapshot();
     var pin = {
       id: uid(),
       no: nextNo(),
-      page: currentPage,
+      page: pageNo,
       x: pos.x,
       y: pos.y,
       question: '',
@@ -202,7 +213,7 @@
       document.body.classList.remove('reviewing');
       currentPage = 1;
       $('empty').hidden = true;
-      $('pageWrap').hidden = false;
+      $('pages').hidden = false;
       $('pager').hidden = false;
       return fitScale().then(function () {
         return maybeLoadGas().then(applyLockAndRender);
@@ -252,44 +263,106 @@
 
   function fitScale() {
     return pdfDoc.getPage(1).then(function (page) {
-      var base = page.getViewport({ scale: 1 });
+      var base = page.getViewport({ scale: 1, rotation: viewportRotation(page) });
       var avail = document.querySelector('.stage').clientWidth - 48;
       scale = Math.max(0.6, Math.min(2, avail / base.width));
     });
   }
 
-  function renderPage() {
+  function renderPage(scrollPage) {
     var token = ++renderToken;
-    return pdfDoc.getPage(currentPage).then(function (page) {
+    var root = $('pages');
+    var stage = document.querySelector('.stage');
+    var max = Math.max(1, stage.scrollHeight - stage.clientHeight);
+    var ratio = stage.scrollTop / max;
+    root.innerHTML = '';
+    function step(n) {
+      if (token !== renderToken || !pdfDoc || n > pdfDoc.numPages) {
+        updatePageLabel();
+        if (scrollPage) scrollToPage(scrollPage);
+        else stage.scrollTop = ratio * Math.max(1, stage.scrollHeight - stage.clientHeight);
+        return Promise.resolve();
+      }
+      return renderOne(n, token, root).then(function () { return step(n + 1); });
+    }
+    return step(1);
+  }
+
+  function renderOne(n, token, root) {
+    return pdfDoc.getPage(n).then(function (page) {
       if (token !== renderToken) return;
-      var viewport = page.getViewport({ scale: scale });
-      var canvas = $('pdf');
-      var ctx = canvas.getContext('2d');
+      var viewport = page.getViewport({ scale: scale, rotation: viewportRotation(page) });
+      var wrap = document.createElement('div');
+      wrap.className = 'page-wrap';
+      wrap.dataset.page = String(n);
+      var canvas = document.createElement('canvas');
+      var layer = document.createElement('div');
+      layer.className = 'pinLayer';
+      layer.dataset.page = String(n);
+      wrap.appendChild(canvas);
+      wrap.appendChild(layer);
+      root.appendChild(wrap);
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      return page.render({ canvasContext: ctx, viewport: viewport }).promise.then(function () {
+      return page.render({ canvasContext: canvas.getContext('2d'), viewport: viewport }).promise.then(function () {
         if (token !== renderToken) return;
-        $('pageLabel').textContent = currentPage + ' / ' + pdfDoc.numPages;
+        drawPins(n);
         $('zoomLabel').textContent = Math.round(scale * 100) + '%';
-        drawPins();
+        $('rotateLabel').textContent = addedRotation() ? addedRotation() + '°' : '';
+        updatePageLabel();
       });
     });
   }
 
-  function drawPins() {
-    var layer = $('pinLayer');
-    layer.innerHTML = '';
-    if (!fileRec) return;
-    fileRec.pins.filter(function (pin) { return pin.page === currentPage; }).forEach(function (pin) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'pin' + (pin.id === selectedId ? ' current' : '');
-      btn.textContent = String(pin.no);
-      btn.style.left = (pin.x * 100) + '%';
-      btn.style.top = (pin.y * 100) + '%';
-      btn.title = pin.answer || (pin.unsure ? '自信がない' : '');
-      layer.appendChild(btn);
-      bindPin(btn, pin);
+  function updatePageLabel() {
+    if (!pdfDoc) return;
+    var stage = document.querySelector('.stage');
+    var marker = stage.getBoundingClientRect().top + ($('pager').offsetHeight || 0) + 24;
+    var found = 1;
+    document.querySelectorAll('.page-wrap').forEach(function (wrap) {
+      if (wrap.getBoundingClientRect().top <= marker) found = Number(wrap.dataset.page);
+    });
+    currentPage = found || 1;
+    $('pageLabel').textContent = currentPage + ' / ' + pdfDoc.numPages;
+  }
+
+  function scrollToPage(n) {
+    var stage = document.querySelector('.stage');
+    var wrap = document.querySelector('.page-wrap[data-page="' + n + '"]');
+    if (!stage || !wrap) return;
+    var pager = $('pager').offsetHeight || 0;
+    var delta = wrap.getBoundingClientRect().top - stage.getBoundingClientRect().top - pager;
+    stage.scrollTop += delta;
+    updatePageLabel();
+  }
+
+  function pageCanvas(pageNo) {
+    var wrap = document.querySelector('.page-wrap[data-page="' + pageNo + '"]');
+    return wrap ? wrap.querySelector('canvas') : null;
+  }
+
+  function drawPins(pageNo) {
+    var layers = pageNo
+      ? [document.querySelector('.pinLayer[data-page="' + pageNo + '"]')]
+      : Array.prototype.slice.call(document.querySelectorAll('.pinLayer'));
+    layers.forEach(function (layer) {
+      if (!layer) return;
+      var n = Number(layer.dataset.page);
+      layer.innerHTML = '';
+      if (!fileRec) return;
+      fileRec.pins.filter(function (pin) { return pin.page === n; }).forEach(function (pin) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'pin' + (pin.id === selectedId ? ' current' : '');
+        btn.dataset.id = pin.id;
+        btn.textContent = String(pin.no);
+        var view = toView(pin.x, pin.y);
+        btn.style.left = (view.x * 100) + '%';
+        btn.style.top = (view.y * 100) + '%';
+        btn.title = pin.answer || (pin.unsure ? '自信がない' : '');
+        layer.appendChild(btn);
+        bindPin(btn, pin);
+      });
     });
   }
 
@@ -310,11 +383,14 @@
         if (Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
         dragging = true;
         if (!snapped) { snapshot(); snapped = true; }
-        var pos = eventRatio(e);
+        var canvas = pageCanvas(pin.page);
+        if (!canvas) return;
+        var view = eventRatio(e, canvas);
+        var pos = toStored(view);
         pin.x = pos.x;
         pin.y = pos.y;
-        btn.style.left = (pin.x * 100) + '%';
-        btn.style.top = (pin.y * 100) + '%';
+        btn.style.left = (view.x * 100) + '%';
+        btn.style.top = (view.y * 100) + '%';
       }
       function up() {
         window.removeEventListener('pointermove', move);
@@ -340,23 +416,18 @@
 
   function focusPin(pin) {
     selectedId = pin.id;
-    if (pin.page !== currentPage) {
-      currentPage = pin.page;
-      renderPage().then(function () { flash(pin); });
-    } else {
-      flash(pin);
-    }
+    currentPage = pin.page;
+    scrollToPage(pin.page);
+    flash(pin);
     var row = document.querySelector('[data-pin="' + pin.id + '"]');
     if (row) row.scrollIntoView({ block: 'nearest' });
   }
 
   function flash(pin) {
-    var pins = document.querySelectorAll('.pin');
-    pins.forEach(function (el, i) {
-      var list = fileRec.pins.filter(function (p) { return p.page === currentPage; });
-      if (list[i] && list[i].id === pin.id) el.classList.add('current');
+    document.querySelectorAll('.pin').forEach(function (el) {
+      el.classList.toggle('current', el.dataset.id === pin.id);
     });
-    var el = document.querySelector('.pin.current');
+    var el = document.querySelector('.pin[data-id="' + pin.id + '"]');
     if (el) el.scrollIntoView({ block: 'center', inline: 'center' });
   }
 
@@ -458,13 +529,10 @@
       btn.appendChild(small);
       btn.addEventListener('click', function () {
         selectedId = pin.id;
-        if (pin.page !== currentPage) {
-          currentPage = pin.page;
-          renderPage().then(function () { openCard(pin); });
-        } else {
-          openCard(pin);
-          drawPins();
-        }
+        currentPage = pin.page;
+        scrollToPage(pin.page);
+        openCard(pin);
+        drawPins();
         renderPinList();
       });
       body.appendChild(btn);
@@ -1633,8 +1701,34 @@
     return p;
   }
 
-  function eventRatio(ev) {
-    var rect = $('pdf').getBoundingClientRect();
+  function addedRotation() {
+    var value = fileRec && Number(fileRec.rotation);
+    if (value === 90 || value === 180 || value === 270) return value;
+    return 0;
+  }
+
+  function viewportRotation(page) {
+    return ((page.rotate || 0) + addedRotation()) % 360;
+  }
+
+  function toView(x, y) {
+    var angle = addedRotation();
+    if (angle === 90) return { x: 1 - y, y: x };
+    if (angle === 180) return { x: 1 - x, y: 1 - y };
+    if (angle === 270) return { x: y, y: 1 - x };
+    return { x: x, y: y };
+  }
+
+  function toStored(pos) {
+    var angle = addedRotation();
+    if (angle === 90) return { x: pos.y, y: 1 - pos.x };
+    if (angle === 180) return { x: 1 - pos.x, y: 1 - pos.y };
+    if (angle === 270) return { x: 1 - pos.y, y: pos.x };
+    return { x: pos.x, y: pos.y };
+  }
+
+  function eventRatio(ev, canvas) {
+    var rect = canvas.getBoundingClientRect();
     return {
       x: clamp((ev.clientX - rect.left) / rect.width),
       y: clamp((ev.clientY - rect.top) / rect.height)
