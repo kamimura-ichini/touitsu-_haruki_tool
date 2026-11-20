@@ -174,6 +174,59 @@
     .rowline input { min-width: 0; font-size: 16px; padding: 8px; }
     .rowline input.field, .rowline select.field { width: 11em; flex: none; font-size: 16px; }
     .rowline input.value, .rowline select.value { flex: 1; min-width: 10em; font-size: 16px; padding: 8px; }
+    .rowline { flex-wrap: wrap; }
+    .radios { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; align-items: center; }
+    .radios label, .unsure, .checkline { display: inline-flex; align-items: center; gap: 4px; }
+    .unsure { font-size: 13px; color: #8a5a00; }
+    .flag { color: #8a5a00; font-weight: 700; }
+    #bulkBar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+    }
+    #bulkPanel {
+      position: fixed;
+      z-index: 18;
+      top: 108px;
+      right: 16px;
+      width: min(460px, calc(100% - 32px));
+      max-height: min(72vh, 680px);
+      overflow: auto;
+      background: #fff;
+      border: 1px solid #c9d7ef;
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.22);
+    }
+    #bulkPanel header {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--navy);
+      color: #fff;
+    }
+    .bulk-row {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      padding: 8px 12px;
+      border-bottom: 1px solid var(--line);
+    }
+    .bulk-row b { width: 5.5em; flex: none; }
+    .bulk-copied { flex: 1; min-width: 4em; font-size: 16px; }
+    .bulk-row input[type="text"] { flex: 1; min-width: 8em; font-size: 16px; padding: 8px; }
+    .bulk-switch { display: flex; gap: 8px; padding: 8px 12px; background: #f4f8ff; }
+    .bulk-switch button.current { background: var(--navy); color: #fff; }
+    .bulk-flow { padding: 0 12px 8px; }
+    .bulk-flow textarea { width: 100%; min-height: 180px; font-size: 16px; padding: 8px; }
+    .bulk-add { margin: 4px 12px 12px; }
     .hint { color: #8a5a00; font-size: 13px; margin: -4px 0 6px; }
     .checkrow small, .pinrow small { display: block; color: #444; font-weight: 400; }
     .review-item { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
@@ -193,7 +246,8 @@
       padding: 6px 8px;
     }
     #card .body { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
-    #card textarea, #card select, #card input { width: 100%; font-size: 16px; }
+    #card textarea, #card select, #card input[type="text"] { width: 100%; font-size: 16px; }
+    #card .checkline input { width: auto; }
     #card textarea { min-height: 64px; }
     #card .row { display: flex; justify-content: space-between; gap: 6px; }
     #toast {
@@ -247,8 +301,8 @@
     body.mode-b.reviewing #backEdit,
     body.mode-b.reviewing #completeB { display: inline-flex; }
     body.mode-b.reviewing #reviewBtn { display: none !important; }
-    body.mode-b.reviewing #checksPanel,
     body.mode-b.reviewing #form { display: none !important; }
+    body.mode-b.reviewing #review { display: block !important; flex: 1; overflow: auto; }
     #empty {
       padding: 48px 16px;
       text-align: center;
@@ -276,6 +330,13 @@
     <span id="bannerText"></span>
     <a id="linkA" href="?mode=a">選管への確認（書き込み用ツール）</a>
     <a id="linkB" href="?mode=b">立候補者情報の入力（確認用ツール）</a>
+  </div>
+  <div id="bulkBar">
+    <strong>一括確認</strong>
+    <button type="button" data-bulk="ふりがな">ふりがな</button>
+    <button type="button" data-bulk="年齢">年齢</button>
+    <button type="button" data-bulk="性別">性別</button>
+    <button type="button" data-bulk="党派">党派</button>
   </div>
   <div class="main">
     <aside id="pinList" class="aonly">
@@ -306,7 +367,7 @@
     </aside>
     <aside id="formPanel" class="bonly sheet">
       <div class="sheetResize"></div>
-      <div class="sheetHead">入力欄（ドラッグで移動）</div>
+      <div class="sheetHead" id="formHead">入力欄（ドラッグで移動）</div>
       <section id="form">
         <div class="block">
           <div id="orders"></div>
@@ -327,11 +388,10 @@
     <div class="body">
       <label>電話で確認した正しい内容</label>
       <textarea id="answer"></textarea>
-      <button type="button" id="showQuestion">聞くことを残す</button>
-      <div id="questionBox" hidden>
-        <label>選管に聞くこと</label>
-        <textarea id="question"></textarea>
-      </div>
+      <label class="checkline">
+        <input id="pinUnsure" type="checkbox">
+        確認したが内容に自信がない
+      </label>
       <div class="row">
         <button type="button" id="deletePin">削除</button>
         <button type="button" id="closeCard">閉じる</button>
@@ -352,6 +412,13 @@
       </div>
     </div>
   </div>
+  <div id="bulkPanel" hidden>
+    <header>
+      <span id="bulkTitle">一括確認</span>
+      <button type="button" id="bulkClose">閉じる</button>
+    </header>
+    <div id="bulkBody"></div>
+  </div>
   <datalist id="masters"></datalist>
 
   <script src="lib/pdf.min.js"></script>
@@ -367,6 +434,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=31"></script>
 </body>
 </html>
