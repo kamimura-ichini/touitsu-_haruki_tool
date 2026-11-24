@@ -131,7 +131,16 @@
       text-align: center;
       cursor: pointer;
     }
-    .pin.current { outline: 3px solid #f0c14d; }
+    .pin.current { outline: 3px solid #f0c14d; z-index: 3; }
+    .pin.current .no {
+      width: 72px;
+      height: 72px;
+      left: -72px;
+      top: -72px;
+      font-size: 36px;
+      line-height: 72px;
+      box-shadow: 0 0 0 3px #f0c14d;
+    }
     body.hand-on .stage,
     body.hand-on .pinLayer,
     body.hand-on canvas { cursor: grab; }
@@ -303,6 +312,7 @@
       padding: 8px 12px;
       background: var(--navy);
       color: #fff;
+      cursor: grab;
     }
     #memoText { width: calc(100% - 24px); min-height: 140px; margin: 12px; font-size: 16px; padding: 8px; }
     .preview-block { padding: 8px 12px 12px; border-bottom: 1px solid var(--line); }
@@ -552,6 +562,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=45"></script>
+  <script src="app.js?v=49"></script>
 </body>
 </html>

@@ -12,7 +12,6 @@
     '政党', '職業', '生年月日', '新現元', '年齢'
   ];
   var BULK_FIELDS = ['ふりがな', '年齢', '性別', '政党', '届け出番号', '新現元', '肩書'];
-  var SENKAN_FIELDS = ['ふりがな（氏）', 'ふりがな（名）', '年齢', '性別', '政党', '届け出番号', '新現元', '肩書'];
   var REMOVED_FIELDS = ['届け出年月日', '候補者名', 'ふりがな', '通称（ふりがな）'];
   var PLACEHOLDERS = {
     '届け出番号': '1',
@@ -284,6 +283,7 @@
     locked = checkLock();
     updateChrome();
     return renderPage().then(renderSide).then(function () {
+      if (mode === 'b' && fileRec && String(fileRec.memo || '').trim() && !locked) openMemo();
       if (mode === 'a' && fileRec && fileRec.status === '確認完了') offerReeditA();
       if (mode === 'b' && fileRec && fileRec.status === '入力完了') offerReedit();
     });
@@ -764,7 +764,7 @@
     var unsureBox = document.createElement('input');
     unsureBox.type = 'checkbox';
     unsureBox.checked = !!row.unsure;
-    unsureBox.disabled = locked || fieldLocked(row.field);
+    unsureBox.disabled = locked;
     unsureBox.dataset.row = row.id;
     unsureBox.addEventListener('change', function () {
       row.unsure = unsureBox.checked;
@@ -809,11 +809,9 @@
       input.type = 'text';
       input.value = row.value || '';
       input.placeholder = PLACEHOLDERS[row.field] || '例';
-      input.readOnly = fieldLocked(row.field);
       tagValue(input, row);
       input.addEventListener('focus', function () { input.dataset.before = row.value || ''; });
       input.addEventListener('input', function () {
-        if (fieldLocked(row.field)) return;
         if (isFurigana(row.field)) input.value = katakanaOnly(input.value);
         if (row.field === '年齢') input.value = digitsOnly(input.value);
         clearIfEmptied(row, 'value', input);
@@ -833,7 +831,7 @@
       var value = choiceValue(choice);
       wrap.appendChild(radioLabel('choice-' + row.id, value, choiceLabel(choice), row.value === value, function () {
         commitRowValue(row, value);
-      }, function () { focusNextRow(row); }, fieldLocked(row.field)));
+      }, function () { focusNextRow(row); }));
     });
     return wrap;
   }
@@ -842,10 +840,6 @@
     el.dataset.row = row.id;
     el.dataset.part = 'value';
     el.dataset.order = String(row.order);
-  }
-
-  function fieldLocked(field) {
-    return mode === 'b' && SENKAN_FIELDS.indexOf(field) !== -1;
   }
 
   function isFurigana(field) {
@@ -940,6 +934,7 @@
     });
     $('bulkClose').addEventListener('click', function () { $('bulkPanel').hidden = true; });
     dragBulk();
+    dragByHeader($('aPreview'));
   }
 
   function openBulk(field) {
@@ -1364,10 +1359,16 @@
   }
 
   function paintBulkButtons() {
+    paintMemoButton();
     if (!fileRec) return;
     document.querySelectorAll('[data-bulk]').forEach(function (btn) {
       btn.classList.toggle('filled', bulkFieldHasValue(btn.getAttribute('data-bulk')));
     });
+  }
+
+  function paintMemoButton() {
+    var text = fileRec ? String(fileRec.memo || '').trim() : '';
+    $('memoBtn').classList.toggle('filled', !!text);
   }
 
   function focusEntryStart() {
@@ -1868,6 +1869,7 @@
     var text = fileRec ? String(fileRec.memo || '').trim() : '';
     box.hidden = !text;
     box.textContent = text ? 'メモ\n' + fileRec.memo : '';
+    paintMemoButton();
   }
 
   function resetPanels() {
@@ -1888,7 +1890,10 @@
   }
 
   function dragBulk() {
-    var panel = $('bulkPanel');
+    dragByHeader($('bulkPanel'));
+  }
+
+  function dragByHeader(panel) {
     var header = panel.querySelector('header');
     header.addEventListener('pointerdown', function (ev) {
       if (ev.button !== 0) return;
