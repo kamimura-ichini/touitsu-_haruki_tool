@@ -51,6 +51,7 @@
   var renderToken = 0;
   var fileRec = null;
   var selectedId = null;
+  var emphasizedId = null;
   var handOn = false;
   var undoStack = [];
   var locked = false;
@@ -218,6 +219,7 @@
     fileRec.pins.push(pin);
     markEditing();
     persist();
+    emphasizedId = null;
     drawPins();
     renderPinList();
     openCard(pin, ev.clientX, ev.clientY);
@@ -263,6 +265,7 @@
       if (ensureElectionDate()) writeStoreFile();
       undoStack = readUndo(opened.hash);
       selectedId = null;
+      emphasizedId = null;
       locked = false;
       $('card').hidden = true;
       $('lock').hidden = true;
@@ -432,7 +435,7 @@
       fileRec.pins.filter(function (pin) { return pin.page === n; }).forEach(function (pin) {
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'pin' + (pin.id === selectedId ? ' current' : '');
+        btn.className = 'pin' + (pin.id === selectedId ? ' current' : '') + (pin.id === emphasizedId ? ' big' : '');
         btn.dataset.id = pin.id;
         var no = document.createElement('span');
         no.className = 'no';
@@ -489,6 +492,7 @@
       ev.stopPropagation();
       if (handOn || dragging) { dragging = false; return; }
       selectedId = pin.id;
+      emphasizedId = null;
       if (mode === 'a' && !locked) openCard(pin, ev.clientX, ev.clientY);
       else focusPin(pin);
       drawPins();
@@ -508,6 +512,7 @@
   function flash(pin) {
     document.querySelectorAll('.pin').forEach(function (el) {
       el.classList.toggle('current', el.dataset.id === pin.id);
+      el.classList.toggle('big', el.dataset.id === emphasizedId);
     });
     var el = document.querySelector('.pin[data-id="' + pin.id + '"]');
     if (el) el.scrollIntoView({ block: 'center', inline: 'center' });
@@ -569,6 +574,7 @@
     snapshot();
     fileRec.pins = fileRec.pins.filter(function (p) { return p.id !== pin.id; });
     selectedId = null;
+    emphasizedId = null;
     $('card').hidden = true;
     markEditing();
     persist();
@@ -613,6 +619,7 @@
       btn.appendChild(small);
       btn.addEventListener('click', function () {
         selectedId = pin.id;
+        emphasizedId = null;
         currentPage = pin.page;
         scrollToPage(pin.page);
         openCard(pin);
@@ -651,6 +658,7 @@
       }
       btn.addEventListener('click', function () {
         selectedId = pin.id;
+        emphasizedId = pin.id;
         focusPin(pin);
         renderChecks();
       });
@@ -1069,14 +1077,24 @@
       input.placeholder = PLACEHOLDERS[field] || '';
       input.dataset.bulkOrder = String(order);
       input.dataset.bulkField = field;
-      input.addEventListener('input', function () {
-        if (readOnly) return;
-        if (field === '届け出番号') input.value = digitsOnly(input.value);
-        var row = ensureBulkRow(order, field);
-        input.dataset.row = row.id;
-        commitRowValue(row, input.value);
-        reflectForm(row);
-      });
+      if (field === '届け出番号' && !readOnly) {
+        bindKanaInput(input, function () {
+          var next = digitsOnly(input.value);
+          if (input.value !== next) input.value = next;
+          var row = ensureBulkRow(order, field);
+          input.dataset.row = row.id;
+          commitRowValue(row, input.value);
+          reflectForm(row);
+        });
+      } else {
+        input.addEventListener('input', function () {
+          if (readOnly) return;
+          var row = ensureBulkRow(order, field);
+          input.dataset.row = row.id;
+          commitRowValue(row, input.value);
+          reflectForm(row);
+        });
+      }
       input.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Enter') return;
         ev.preventDefault();
