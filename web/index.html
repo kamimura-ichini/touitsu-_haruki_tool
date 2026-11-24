@@ -248,7 +248,7 @@
       z-index: 18;
       top: 108px;
       right: 16px;
-      width: min(460px, calc(100% - 32px));
+      width: min(640px, calc(100% - 32px));
       max-height: min(72vh, 680px);
       overflow: auto;
       background: #fff;
@@ -270,8 +270,12 @@
       color: #fff;
       cursor: grab;
     }
-    .age-parts, .kana-parts { display: flex; gap: 4px; flex: 1; align-items: center; flex-wrap: wrap; }
+    .age-parts, .kana-parts, .age-cal, .era-picks { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+    .age-parts { flex: 1; }
     .age-parts input { width: 4.5em; flex: none; }
+    .age-cal label, .era-picks label { display: inline-flex; align-items: center; gap: 2px; }
+    .era-picks { padding: 2px 6px; border: 1px solid var(--line); border-radius: 6px; }
+    .age-note { font-size: 12px; color: #666; }
     .kana-parts input { width: 7em; flex: 1; }
     .right-answer { color: var(--red); font-size: 20px; font-weight: 700; line-height: 1.4; }
     .age-basis { color: #8a5a00; font-size: 13px; font-weight: 700; }
@@ -548,6 +552,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=43"></script>
+  <script src="app.js?v=44"></script>
 </body>
 </html>
