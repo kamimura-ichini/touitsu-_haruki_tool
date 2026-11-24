@@ -1119,7 +1119,7 @@
     cal.appendChild(ageChoice(order, 'wareki', '和暦', saved && saved.kind === 'wareki'));
     var eras = document.createElement('span');
     eras.className = 'era-picks';
-    ['平成', '令和'].forEach(function (era) {
+    ['平成', '昭和'].forEach(function (era) {
       eras.appendChild(ageChoice(order, 'era', era, saved && saved.era === era));
     });
     cal.appendChild(eras);
@@ -1280,7 +1280,7 @@
 
   function readAgeEntry(row) {
     var text = row ? String(row.value || '').trim() : '';
-    var wareki = text.match(/^(平成|令和)(\d+)年(\d+)月(\d+)日$/);
+    var wareki = text.match(/^(平成|昭和)(\d+)年(\d+)月(\d+)日$/);
     if (wareki) return { kind: 'wareki', era: wareki[1], y: wareki[2], m: wareki[3], d: wareki[4] };
     var western = text.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
     if (western && Number(western[1]) >= 1980) return { kind: 'western', era: '', y: western[1], m: western[2], d: western[3] };
@@ -1299,14 +1299,14 @@
       if (!westernDate) return null;
       return { text: year + '年' + month + '月' + day + '日' };
     }
-    if (kind !== 'wareki' || (eraName !== '平成' && eraName !== '令和')) return null;
+    if (kind !== 'wareki' || (eraName !== '平成' && eraName !== '昭和')) return null;
     var era = ERAS.filter(function (item) { return item.name === eraName; })[0];
     var eraYear = Number(y);
     if (!era || eraYear < 1) return null;
     var dt = makeDate(era.start + eraYear - 1, month, day);
     if (!dt) return null;
+    if (eraName === '昭和' && (dt < makeDate(1926, 12, 25) || dt > makeDate(1989, 1, 7))) return null;
     if (eraName === '平成' && (dt < makeDate(1989, 1, 8) || dt > makeDate(2019, 4, 30))) return null;
-    if (eraName === '令和' && dt < makeDate(2019, 5, 1)) return null;
     return { text: eraName + eraYear + '年' + month + '月' + day + '日' };
   }
 
