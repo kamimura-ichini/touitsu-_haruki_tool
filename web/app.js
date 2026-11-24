@@ -811,12 +811,20 @@
       input.placeholder = PLACEHOLDERS[row.field] || '例';
       tagValue(input, row);
       input.addEventListener('focus', function () { input.dataset.before = row.value || ''; });
-      input.addEventListener('input', function () {
-        if (isFurigana(row.field)) input.value = katakanaOnly(input.value);
-        if (row.field === '年齢') input.value = digitsOnly(input.value);
-        clearIfEmptied(row, 'value', input);
-        commitRowValue(row, input.value);
-      });
+      if (isFurigana(row.field)) {
+        bindKanaInput(input, function () {
+          var next = katakanaOnly(input.value);
+          if (input.value !== next) input.value = next;
+          clearIfEmptied(row, 'value', input);
+          commitRowValue(row, input.value);
+        });
+      } else {
+        input.addEventListener('input', function () {
+          if (row.field === '年齢') input.value = digitsOnly(input.value);
+          clearIfEmptied(row, 'value', input);
+          commitRowValue(row, input.value);
+        });
+      }
       input.addEventListener('keydown', function (ev) {
         if (ev.key !== 'Enter') return;
         ev.preventDefault();
@@ -853,7 +861,22 @@
   }
 
   function katakanaOnly(text) {
-    return String(text || '').replace(/[^ァ-ヶー・]/g, '');
+    return String(text || '').replace(/[ぁ-ゖ]/g, function (ch) {
+      return String.fromCharCode(ch.charCodeAt(0) + 0x60);
+    }).replace(/[^ァ-ヶー・]/g, '');
+  }
+
+  function bindKanaInput(input, apply) {
+    input.lang = 'ja';
+    input.addEventListener('compositionstart', function () { input.dataset.composing = '1'; });
+    input.addEventListener('compositionend', function () {
+      input.dataset.composing = '';
+      apply();
+    });
+    input.addEventListener('input', function (ev) {
+      if (ev.isComposing || input.dataset.composing) return;
+      apply();
+    });
   }
 
   function choiceValue(choice) {
@@ -935,6 +958,7 @@
     $('bulkClose').addEventListener('click', function () { $('bulkPanel').hidden = true; });
     dragBulk();
     dragByHeader($('aPreview'));
+    dragByHeader($('memoPanel'));
   }
 
   function openBulk(field) {
@@ -950,6 +974,13 @@
     var body = $('bulkBody');
     body.innerHTML = '';
     if (!field || !fileRec) return;
+    var noteText = inputLimitNote(field);
+    if (noteText) {
+      var note = document.createElement('p');
+      note.className = 'limit-note';
+      note.textContent = noteText;
+      body.appendChild(note);
+    }
     var total = candidateSlotCount();
     for (var order = 1; order <= total; order++) body.appendChild(bulkLine(order, field));
     var add = document.createElement('button');
@@ -958,6 +989,13 @@
     add.textContent = '候補者を増やす';
     add.addEventListener('click', addCandidateSlot);
     body.appendChild(add);
+  }
+
+  function inputLimitNote(field) {
+    if (field === 'ふりがな') return '全角カタカナで入力してください。';
+    if (field === '年齢') return '年・月・日は半角数字で入力してください。';
+    if (field === '届け出番号') return '半角数字で入力してください。';
+    return '';
   }
 
   function addCandidateSlot() {
@@ -1086,13 +1124,15 @@
       input.readOnly = mode === 'b';
       input.dataset.bulkOrder = String(order);
       input.dataset.bulkField = spec[0];
-      input.addEventListener('input', function () {
-        if (mode === 'b') return;
-        input.value = katakanaOnly(input.value);
-        var row = ensureBulkRow(order, spec[0]);
-        commitRowValue(row, input.value);
-        reflectForm(row);
-      });
+      if (mode !== 'b') {
+        bindKanaInput(input, function () {
+          var next = katakanaOnly(input.value);
+          if (input.value !== next) input.value = next;
+          var row = ensureBulkRow(order, spec[0]);
+          commitRowValue(row, input.value);
+          reflectForm(row);
+        });
+      }
       parts.appendChild(label);
       parts.appendChild(input);
     });
