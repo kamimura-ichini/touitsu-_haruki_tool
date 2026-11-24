@@ -132,7 +132,7 @@
       cursor: pointer;
     }
     .pin.current { outline: 3px solid #f0c14d; z-index: 3; }
-    .pin.current .no {
+    .pin.big .no {
       width: 36px;
       height: 36px;
       left: -36px;
@@ -571,6 +571,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=55"></script>
+  <script src="app.js?v=57"></script>
 </body>
 </html>
