@@ -147,7 +147,7 @@
     document.body.classList.add('reviewing');
     $('review').hidden = false;
     $('bulkPanel').hidden = true;
-    $('formPanel').classList.remove('minimized');
+    placePanelDefault($('formPanel'));
     $('formMin').textContent = 'ー';
     $('formHeadText').textContent = '入力内容の確認';
     $('formPanel').scrollTop = 0;
@@ -696,11 +696,13 @@
       orderedRows(order).forEach(function (row) {
         box.appendChild(rowLine(row));
       });
-      var add = document.createElement('button');
-      add.type = 'button';
-      add.textContent = '＋項目枠を追加';
-      add.addEventListener('click', function () { addRow(order, true); });
-      box.appendChild(add);
+      if (mode !== 'b') {
+        var add = document.createElement('button');
+        add.type = 'button';
+        add.textContent = '＋項目枠を追加';
+        add.addEventListener('click', function () { addRow(order, true); });
+        box.appendChild(add);
+      }
       root.appendChild(box);
     });
     if (focus) {
@@ -932,7 +934,7 @@
     var same = orderedRows(row.order);
     var idx = same.findIndex(function (item) { return item.id === row.id; });
     if (idx === same.length - 1) {
-      if (!row.fixed) addRow(row.order, true);
+      if (mode !== 'b' && !row.fixed) addRow(row.order, true);
       return;
     }
     focusValue(document.querySelector('[data-row="' + same[idx + 1].id + '"][data-part="value"]'));
@@ -1161,7 +1163,7 @@
     cal.appendChild(ageChoice(order, 'western', '西暦', saved && saved.kind === 'western'));
     var note = document.createElement('span');
     note.className = 'age-note';
-    note.textContent = '1980～';
+    note.textContent = '100歳まで';
     cal.appendChild(note);
     line.appendChild(cal);
     var parts = document.createElement('div');
@@ -1248,8 +1250,8 @@
       if (shown) shown.textContent = '';
     } else if (nums[0] && nums[1] && nums[2] && selectedAgeKind(order)) {
       var built = buildAgeDate(selectedAgeKind(order), selectedEra(order), nums[0], nums[1], nums[2]);
-      if (!built) {
-        if (shown) shown.textContent = selectedAgeKind(order) === 'western' ? '1980年以降' : '日付を確認';
+      if (!built || !built.text) {
+        if (shown) shown.textContent = built && built.error ? built.error : '日付を確認';
         return;
       }
       birth.value = built.text;
@@ -1318,10 +1320,20 @@
     var wareki = text.match(/^(平成|昭和)(\d+)年(\d+)月(\d+)日$/);
     if (wareki) return { kind: 'wareki', era: wareki[1], y: wareki[2], m: wareki[3], d: wareki[4] };
     var western = text.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
-    if (western && Number(western[1]) >= 1980) return { kind: 'western', era: '', y: western[1], m: western[2], d: western[3] };
+    if (western && !overMaxAge(makeDate(Number(western[1]), Number(western[2]), Number(western[3])))) {
+      return { kind: 'western', era: '', y: western[1], m: western[2], d: western[3] };
+    }
     var iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-    if (iso && Number(iso[1]) >= 1980) return { kind: 'western', era: '', y: iso[1], m: iso[2], d: iso[3] };
+    if (iso && !overMaxAge(makeDate(Number(iso[1]), Number(iso[2]), Number(iso[3])))) {
+      return { kind: 'western', era: '', y: iso[1], m: iso[2], d: iso[3] };
+    }
     return null;
+  }
+
+  function overMaxAge(dt) {
+    if (!dt) return true;
+    var age = fullAge(dt);
+    return age != null && age > 100;
   }
 
   function buildAgeDate(kind, eraName, y, m, d) {
@@ -1329,9 +1341,9 @@
     var day = Number(d);
     if (kind === 'western') {
       var year = Number(y);
-      if (year < 1980) return null;
       var westernDate = makeDate(year, month, day);
       if (!westernDate) return null;
+      if (overMaxAge(westernDate)) return { error: '100歳まで' };
       return { text: year + '年' + month + '月' + day + '日' };
     }
     if (kind !== 'wareki' || (eraName !== '平成' && eraName !== '昭和')) return null;
@@ -1342,6 +1354,7 @@
     if (!dt) return null;
     if (eraName === '昭和' && (dt < makeDate(1926, 12, 25) || dt > makeDate(1989, 1, 7))) return null;
     if (eraName === '平成' && (dt < makeDate(1989, 1, 8) || dt > makeDate(2019, 4, 30))) return null;
+    if (overMaxAge(dt)) return { error: '100歳まで' };
     return { text: eraName + eraYear + '年' + month + '月' + day + '日' };
   }
 
@@ -1838,8 +1851,19 @@
   function openAPreview() {
     if (!ensureFile()) return;
     if (!fileRec.pins.length && !hasBulkValue()) { showToast('印も一括確認もありません'); return; }
+    placePanelDefault($('aPreview'));
     $('aPreview').hidden = false;
     renderAPreview();
+  }
+
+  function placePanelDefault(panel) {
+    panel.classList.remove('floating', 'minimized');
+    panel.style.left = '';
+    panel.style.top = '';
+    panel.style.width = '';
+    panel.style.height = '';
+    panel.style.right = '';
+    panel.style.zIndex = '';
   }
 
   function renderAPreview() {
@@ -1941,11 +1965,16 @@
       var origin = panel.getBoundingClientRect();
       var startX = ev.clientX;
       var startY = ev.clientY;
-      panel.style.width = origin.width + 'px';
-      panel.style.left = origin.left + 'px';
-      panel.style.top = origin.top + 'px';
-      panel.style.right = 'auto';
+      var moved = false;
       function move(e) {
+        if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
+        if (!moved) {
+          moved = true;
+          panel.style.width = origin.width + 'px';
+          panel.style.left = origin.left + 'px';
+          panel.style.top = origin.top + 'px';
+          panel.style.right = 'auto';
+        }
         var left = origin.left + (e.clientX - startX);
         var top = origin.top + (e.clientY - startY);
         var maxLeft = Math.max(8, window.innerWidth - panel.offsetWidth - 8);
