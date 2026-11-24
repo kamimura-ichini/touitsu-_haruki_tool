@@ -133,12 +133,12 @@
     }
     .pin.current { outline: 3px solid #f0c14d; z-index: 3; }
     .pin.current .no {
-      width: 72px;
-      height: 72px;
-      left: -72px;
-      top: -72px;
-      font-size: 36px;
-      line-height: 72px;
+      width: 36px;
+      height: 36px;
+      left: -36px;
+      top: -36px;
+      font-size: 18px;
+      line-height: 36px;
       box-shadow: 0 0 0 3px #f0c14d;
     }
     body.hand-on .stage,
@@ -329,6 +329,14 @@
     .bulk-row input[type="text"] { flex: 1; min-width: 8em; font-size: 16px; padding: 8px; }
     .bulk-add { margin: 4px 12px 12px; }
     .hint { color: #8a5a00; font-size: 13px; margin: -4px 0 6px; }
+    .limit-note {
+      margin: 0;
+      padding: 8px 12px 0;
+      color: #8a5a00;
+      font-size: 14px;
+      font-weight: 700;
+    }
+    #form .limit-note { padding: 0 0 10px; }
     .checkrow small, .pinrow small { display: block; color: #444; font-weight: 400; }
     .review-item { display: flex; gap: 8px; padding: 4px 0; border-bottom: 1px solid #f0f0f0; }
     .review-item b { width: 9.5em; flex: none; }
@@ -481,6 +489,7 @@
       </div>
       <section id="form">
         <div class="block">
+          <p class="limit-note">ふりがなは全角カタカナ、年齢は半角数字で入力してください。</p>
           <div id="orders"></div>
           <button type="button" id="addOrder">＋別の届出順を追加</button>
           <button type="button" id="resetOrder">届出順1番のみに戻す</button>
@@ -562,6 +571,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=49"></script>
+  <script src="app.js?v=52"></script>
 </body>
 </html>
