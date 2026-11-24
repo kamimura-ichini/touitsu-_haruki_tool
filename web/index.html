@@ -107,18 +107,40 @@
     #pinLayer, .pinLayer { position: absolute; inset: 0; }
     .pin {
       position: absolute;
-      width: 28px;
-      height: 28px;
-      margin: -14px 0 0 -14px;
+      width: 8px;
+      height: 8px;
+      margin: -4px 0 0 -4px;
+      border-radius: 50%;
+      background: rgba(192, 57, 43, .55);
+      border: 0;
+      padding: 0;
+      overflow: visible;
+    }
+    .pin .no {
+      position: absolute;
+      left: -18px;
+      top: -18px;
+      width: 18px;
+      height: 18px;
       border-radius: 50%;
       background: var(--red);
       color: #fff;
+      font-size: 11px;
       font-weight: 700;
-      border: 2px solid #fff;
-      box-shadow: 0 1px 4px rgba(0,0,0,.35);
-      padding: 0;
+      line-height: 18px;
+      text-align: center;
+      pointer-events: none;
     }
     .pin.current { outline: 3px solid #f0c14d; }
+    body.hand-on .stage,
+    body.hand-on .pinLayer,
+    body.hand-on canvas { cursor: grab; }
+    #hand.on { background: var(--navy); color: #fff; }
+    input, textarea, select { caret-color: #1a56c4; }
+    input:focus, textarea:focus, select:focus {
+      outline: 2px solid #1a56c4;
+      outline-offset: 1px;
+    }
     .sheet {
       width: 340px;
       min-width: 280px;
@@ -149,6 +171,39 @@
       padding: 8px 12px;
       font-weight: 700;
       flex: none;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .sheetMin {
+      background: transparent;
+      color: #fff;
+      font-weight: 700;
+      padding: 0 8px;
+      font-size: 18px;
+      line-height: 1;
+    }
+    #formPanel.minimized section { display: none; }
+    #formPanel.minimized { height: auto !important; overflow: hidden; }
+    .sheetCorner {
+      position: absolute;
+      right: 0;
+      bottom: 0;
+      width: 18px;
+      height: 18px;
+      cursor: nwse-resize;
+      z-index: 5;
+    }
+    .sheetCorner::before {
+      content: "";
+      position: absolute;
+      right: 3px;
+      bottom: 3px;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid #7d8ea8;
+      border-bottom: 2px solid #7d8ea8;
     }
     .sheetResize {
       position: absolute;
@@ -201,6 +256,8 @@
       border-radius: 8px;
       box-shadow: 0 8px 28px rgba(0,0,0,.22);
     }
+    #bulkBar button.filled { background: #1f6b4a; color: #fff; }
+    #bulkBar label { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
     #bulkPanel header {
       position: sticky;
       top: 0;
@@ -211,21 +268,51 @@
       padding: 8px 12px;
       background: var(--navy);
       color: #fff;
+      cursor: grab;
     }
+    .age-parts, .kana-parts { display: flex; gap: 4px; flex: 1; align-items: center; flex-wrap: wrap; }
+    .age-parts input { width: 4.5em; flex: none; }
+    .kana-parts input { width: 7em; flex: 1; }
+    .right-answer { color: var(--red); font-size: 20px; font-weight: 700; line-height: 1.4; }
+    .age-basis { color: #8a5a00; font-size: 13px; font-weight: 700; }
+    #memoRead { white-space: pre-wrap; background: #fff8e8; }
+    #aPreview, #memoPanel {
+      position: fixed;
+      z-index: 22;
+      top: 108px;
+      left: 16px;
+      width: min(520px, calc(100% - 32px));
+      max-height: min(72vh, 680px);
+      overflow: auto;
+      background: #fff;
+      border: 1px solid #c9d7ef;
+      border-radius: 8px;
+      box-shadow: 0 8px 28px rgba(0,0,0,.22);
+    }
+    #aPreview header, #memoPanel header {
+      position: sticky;
+      top: 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      background: var(--navy);
+      color: #fff;
+    }
+    #memoText { width: calc(100% - 24px); min-height: 140px; margin: 12px; font-size: 16px; padding: 8px; }
+    .preview-block { padding: 8px 12px 12px; border-bottom: 1px solid var(--line); }
     .bulk-row {
       display: flex;
       gap: 8px;
       align-items: center;
+      flex-wrap: wrap;
       padding: 8px 12px;
       border-bottom: 1px solid var(--line);
     }
     .bulk-row b { width: 5.5em; flex: none; }
     .bulk-copied { flex: 1; min-width: 4em; font-size: 16px; }
     .bulk-row input[type="text"] { flex: 1; min-width: 8em; font-size: 16px; padding: 8px; }
-    .bulk-switch { display: flex; gap: 8px; padding: 8px 12px; background: #f4f8ff; }
-    .bulk-switch button.current { background: var(--navy); color: #fff; }
-    .bulk-flow { padding: 0 12px 8px; }
-    .bulk-flow textarea { width: 100%; min-height: 180px; font-size: 16px; padding: 8px; }
     .bulk-add { margin: 4px 12px 12px; }
     .hint { color: #8a5a00; font-size: 13px; margin: -4px 0 6px; }
     .checkrow small, .pinrow small { display: block; color: #444; font-weight: 400; }
@@ -319,11 +406,12 @@
     <span id="unref" class="bonly"></span>
     <span id="saveState"></span>
     <button type="button" id="saveBtn">ここまで保存</button>
-    <button type="button" id="completeA" class="aonly primary">確認完了</button>
+    <button type="button" id="completeA" class="aonly primary">入力内容を確認する</button>
     <button type="button" id="reviewBtn" class="bonly primary">確認する</button>
     <button type="button" id="backEdit" class="bonly">入力に戻る</button>
     <button type="button" id="completeB" class="bonly primary">入力完了</button>
     <label class="filebtn">PDFを開く<input id="file" type="file" accept="application/pdf"></label>
+    <button type="button" id="resetPanels" class="bonly">入力枠を初期位置に戻す</button>
   </header>
   <div class="banner">
     <span id="modeLabel"></span>
@@ -336,7 +424,12 @@
     <button type="button" data-bulk="ふりがな">ふりがな</button>
     <button type="button" data-bulk="年齢">年齢</button>
     <button type="button" data-bulk="性別">性別</button>
-    <button type="button" data-bulk="党派">党派</button>
+    <button type="button" data-bulk="政党">政党</button>
+    <button type="button" data-bulk="届け出番号">届出番号</button>
+    <button type="button" data-bulk="新現元">新現元</button>
+    <button type="button" data-bulk="肩書">肩書</button>
+    <label>投開票日 <input id="electionDate" type="date"></label>
+    <button type="button" id="memoBtn">メモ</button>
   </div>
   <div class="main">
     <aside id="pinList" class="aonly">
@@ -349,6 +442,7 @@
         <button type="button" id="zoomOut">－</button>
         <span id="zoomLabel"></span>
         <button type="button" id="zoomIn">＋</button>
+        <button type="button" id="hand">手</button>
         <button type="button" id="rotate">回す</button>
         <span id="rotateLabel"></span>
       </div>
@@ -357,14 +451,20 @@
     </div>
     <aside id="checksPanel" class="bonly sheet">
       <div class="sheetResize"></div>
+      <div class="sheetCorner"></div>
       <div class="sheetHead">確認事項（ドラッグで移動）</div>
       <section id="checks">
+        <div id="memoRead" class="block" hidden></div>
         <div id="checkBody" class="block"></div>
       </section>
     </aside>
     <aside id="formPanel" class="bonly sheet">
       <div class="sheetResize"></div>
-      <div class="sheetHead" id="formHead">入力欄（ドラッグで移動）</div>
+      <div class="sheetCorner"></div>
+      <div class="sheetHead" id="formHead">
+        <span id="formHeadText">入力欄（ドラッグで移動）</span>
+        <button type="button" id="formMin" class="sheetMin">ー</button>
+      </div>
       <section id="form">
         <div class="block">
           <div id="orders"></div>
@@ -409,6 +509,23 @@
       </div>
     </div>
   </div>
+  <div id="aPreview" hidden>
+    <header>
+      <span>入力内容の確認</span>
+      <span>
+        <button type="button" id="aPreviewBack">戻る</button>
+        <button type="button" id="aPreviewDone" class="primary">完了</button>
+      </span>
+    </header>
+    <div id="aPreviewBody"></div>
+  </div>
+  <div id="memoPanel" hidden>
+    <header>
+      <span>メモ</span>
+      <button type="button" id="closeMemo">閉じる</button>
+    </header>
+    <textarea id="memoText" placeholder="このPDFについてのメモ"></textarea>
+  </div>
   <div id="bulkPanel" hidden>
     <header>
       <span id="bulkTitle">一括確認</span>
@@ -431,6 +548,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=39"></script>
+  <script src="app.js?v=43"></script>
 </body>
 </html>

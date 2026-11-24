@@ -5,13 +5,26 @@
     'カナ', '年齢', '氏名', 'ふりがな', '候補者(ふりがな)氏名', '(ふりがな)通称', '通称',
     '党派', '政党名', '職業', '肩書', '性別', '生年月日', '新現元', '新現元別', '住所', '本籍地',
     '選挙事務所', '選挙事務所TEL', '届出年月日',
-    '届け出番号', '届け出年月日', '候補者名', '通称（ふりがな）'
+    '届け出番号', '通称（氏）', '通称（名）', 'ふりがな（氏）', 'ふりがな（名）', '政党', '肩書'
   ];
   var FIXED_FIELDS = [
-    '届け出番号', '届け出年月日', '候補者名', 'ふりがな', '通称（ふりがな）', '性別',
-    '党派', '職業', '生年月日', '新現元', '年齢'
+    '届け出番号', '通称（氏）', '通称（名）', 'ふりがな（氏）', 'ふりがな（名）', '性別',
+    '政党', '職業', '生年月日', '新現元', '年齢'
   ];
-  var BULK_FIELDS = ['ふりがな', '年齢', '性別', '党派'];
+  var BULK_FIELDS = ['ふりがな', '年齢', '性別', '政党', '届け出番号', '新現元', '肩書'];
+  var SENKAN_FIELDS = ['ふりがな（氏）', 'ふりがな（名）', '年齢', '性別', '政党', '届け出番号', '新現元', '肩書'];
+  var REMOVED_FIELDS = ['届け出年月日', '候補者名', 'ふりがな', '通称（ふりがな）'];
+  var PLACEHOLDERS = {
+    '届け出番号': '1',
+    '通称（氏）': '山田',
+    '通称（名）': '太郎',
+    'ふりがな（氏）': 'ヤマダ',
+    'ふりがな（名）': 'タロウ',
+    '職業': '会社員',
+    '生年月日': '昭和30年11月1日',
+    '年齢': '47',
+    '肩書': '市長'
+  };
   var DEFAULT_CANDIDATE_SLOTS = 10;
   var VALUE_CHOICES = {
     '性別': [
@@ -19,7 +32,7 @@
       { value: '女', label: '女' },
       { value: '', label: '空白' }
     ],
-    '新現元': ['', '新', '現', '元']
+    '新現元': ['', '新', '現', '元', '前']
   };
   var ERAS = [
     { name: '令和', short: 'R', start: 2019 },
@@ -39,6 +52,7 @@
   var renderToken = 0;
   var fileRec = null;
   var selectedId = null;
+  var handOn = false;
   var undoStack = [];
   var locked = false;
   var gasTimer = null;
@@ -90,7 +104,40 @@
   });
   $('toastUndo').addEventListener('click', function () { hideToast(); undo(); });
   $('saveBtn').addEventListener('click', function () { persist(true); });
-  $('completeA').addEventListener('click', completeA);
+  $('completeA').addEventListener('click', openAPreview);
+  $('aPreviewBack').addEventListener('click', function () { $('aPreview').hidden = true; });
+  $('aPreviewDone').addEventListener('click', completeA);
+  $('resetPanels').addEventListener('click', resetPanels);
+  $('formMin').addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    var panel = $('formPanel');
+    var closed = panel.classList.toggle('minimized');
+    $('formMin').textContent = closed ? '＋' : 'ー';
+  });
+  $('hand').addEventListener('click', function () {
+    handOn = !handOn;
+    $('hand').classList.toggle('on', handOn);
+    document.body.classList.toggle('hand-on', handOn);
+  });
+  $('memoBtn').addEventListener('click', openMemo);
+  $('closeMemo').addEventListener('click', function () { $('memoPanel').hidden = true; });
+  $('memoText').addEventListener('input', function () {
+    if (!fileRec || mode !== 'a' || locked) return;
+    fileRec.memo = $('memoText').value;
+    markEditing();
+    persist();
+    renderMemo();
+  });
+  $('electionDate').addEventListener('change', function () {
+    if (!fileRec || mode !== 'a' || locked) {
+      $('electionDate').value = fileRec && fileRec.electionDate ? fileRec.electionDate : '';
+      return;
+    }
+    fileRec.electionDate = $('electionDate').value;
+    markEditing();
+    persist();
+    refreshAges();
+  });
   $('reviewBtn').addEventListener('click', function () {
     if (!ensureFile()) {
       if (!fileRec) showToast('PDFを開いてください');
@@ -100,14 +147,16 @@
     document.body.classList.add('reviewing');
     $('review').hidden = false;
     $('bulkPanel').hidden = true;
-    $('formHead').textContent = '入力内容の確認';
+    $('formPanel').classList.remove('minimized');
+    $('formMin').textContent = 'ー';
+    $('formHeadText').textContent = '入力内容の確認';
     $('formPanel').scrollTop = 0;
     renderReview();
   });
   $('backEdit').addEventListener('click', function () {
     document.body.classList.remove('reviewing');
     $('review').hidden = true;
-    $('formHead').textContent = '入力欄（ドラッグで移動）';
+    $('formHeadText').textContent = '入力欄（ドラッグで移動）';
   });
   $('completeB').addEventListener('click', completeB);
   $('addOrder').addEventListener('click', function () {
@@ -144,9 +193,10 @@
   document.querySelector('.stage').addEventListener('scroll', function () {
     if (pdfDoc) updatePageLabel();
   });
+  bindHand();
 
   $('pages').addEventListener('click', function (ev) {
-    if (mode !== 'a' || locked || !fileRec) return;
+    if (handOn || mode !== 'a' || locked || !fileRec) return;
     var layer = ev.target.closest ? ev.target.closest('.pinLayer') : null;
     if (!layer || ev.target !== layer) return;
     if (!requireName()) return;
@@ -331,6 +381,28 @@
     $('pageLabel').textContent = currentPage + ' / ' + pdfDoc.numPages;
   }
 
+  function bindHand() {
+    var stage = document.querySelector('.stage');
+    var drag = null;
+    stage.addEventListener('pointerdown', function (ev) {
+      if (!handOn || ev.button !== 0) return;
+      if (ev.target.closest && ev.target.closest('button, a, input, textarea, select')) return;
+      drag = { x: ev.clientX, y: ev.clientY, left: stage.scrollLeft, top: stage.scrollTop, id: ev.pointerId };
+      stage.setPointerCapture(ev.pointerId);
+    });
+    stage.addEventListener('pointermove', function (ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      stage.scrollLeft = drag.left - (ev.clientX - drag.x);
+      stage.scrollTop = drag.top - (ev.clientY - drag.y);
+    });
+    function end(ev) {
+      if (!drag || ev.pointerId !== drag.id) return;
+      drag = null;
+    }
+    stage.addEventListener('pointerup', end);
+    stage.addEventListener('pointercancel', end);
+  }
+
   function scrollToPage(n) {
     var stage = document.querySelector('.stage');
     var wrap = document.querySelector('.page-wrap[data-page="' + n + '"]');
@@ -360,11 +432,14 @@
         btn.type = 'button';
         btn.className = 'pin' + (pin.id === selectedId ? ' current' : '');
         btn.dataset.id = pin.id;
-        btn.textContent = String(pin.no);
+        var no = document.createElement('span');
+        no.className = 'no';
+        no.textContent = String(pin.no);
+        btn.appendChild(no);
         var view = toView(pin.x, pin.y);
         btn.style.left = (view.x * 100) + '%';
         btn.style.top = (view.y * 100) + '%';
-        btn.title = pin.answer || (pin.unsure ? '自信がない' : '');
+        btn.title = pin.answer || (pin.unsure ? '入力不明・不安' : '');
         layer.appendChild(btn);
         bindPin(btn, pin);
       });
@@ -377,7 +452,7 @@
     var dragging = false;
     var snapped = false;
     btn.addEventListener('pointerdown', function (ev) {
-      if (locked) return;
+      if (handOn || locked) return;
       ev.stopPropagation();
       if (mode !== 'a') return;
       startX = ev.clientX;
@@ -410,7 +485,7 @@
     });
     btn.addEventListener('click', function (ev) {
       ev.stopPropagation();
-      if (dragging) { dragging = false; return; }
+      if (handOn || dragging) { dragging = false; return; }
       selectedId = pin.id;
       if (mode === 'a' && !locked) openCard(pin, ev.clientX, ev.clientY);
       else focusPin(pin);
@@ -508,8 +583,10 @@
   function renderSide() {
     renderPinList();
     renderChecks();
+    renderMemo();
     renderForm();
     if (document.body.classList.contains('reviewing')) renderReview();
+    paintBulkButtons();
     updateChrome();
     focusEntryStart();
   }
@@ -529,7 +606,7 @@
       var title = document.createElement('b');
       title.textContent = pin.no + '  p' + pin.page;
       var small = document.createElement('small');
-      small.textContent = (pin.answer || '（空）') + (pin.unsure ? '  自信がない' : '');
+      small.textContent = (pin.answer || '（空）') + (pin.unsure ? '  入力不明・不安' : '');
       btn.appendChild(title);
       btn.appendChild(small);
       btn.addEventListener('click', function () {
@@ -560,14 +637,16 @@
       btn.className = 'pinrow';
       var title = document.createElement('b');
       title.textContent = pin.no + '  p' + pin.page;
-      var small = document.createElement('small');
-      var lines = [];
-      lines.push('正しい内容: ' + (pin.answer || '（空）'));
-      if (pin.unsure) lines.push('自信がない');
-      small.textContent = lines.join('\n');
-      small.style.whiteSpace = 'pre-wrap';
+      var answer = document.createElement('div');
+      answer.className = 'right-answer';
+      answer.textContent = pin.answer || '（空）';
       btn.appendChild(title);
-      btn.appendChild(small);
+      btn.appendChild(answer);
+      if (pin.unsure) {
+        var small = document.createElement('small');
+        small.textContent = '入力不明・不安';
+        btn.appendChild(small);
+      }
       btn.addEventListener('click', function () {
         selectedId = pin.id;
         focusPin(pin);
@@ -603,7 +682,6 @@
       if (added) persist();
     }
     root.innerHTML = '';
-    var firstOrder = orders()[0];
     orders().forEach(function (order) {
       var box = document.createElement('div');
       box.className = 'order';
@@ -612,14 +690,6 @@
       heading.textContent = '候補者 ' + order;
       heading.style.fontWeight = '700';
       heading.style.marginBottom = '8px';
-      if (!locked && order !== firstOrder) {
-        var remove = document.createElement('button');
-        remove.type = 'button';
-        remove.textContent = 'この候補者を消す';
-        remove.style.marginLeft = '8px';
-        remove.addEventListener('click', function () { removeOrder(order); });
-        heading.appendChild(remove);
-      }
       box.appendChild(heading);
       orderedRows(order).forEach(function (row) {
         box.appendChild(rowLine(row));
@@ -692,7 +762,7 @@
     var unsureBox = document.createElement('input');
     unsureBox.type = 'checkbox';
     unsureBox.checked = !!row.unsure;
-    unsureBox.disabled = locked;
+    unsureBox.disabled = locked || fieldLocked(row.field);
     unsureBox.dataset.row = row.id;
     unsureBox.addEventListener('change', function () {
       row.unsure = unsureBox.checked;
@@ -701,9 +771,16 @@
       reflectBulkUnsure(row);
     });
     unsure.appendChild(unsureBox);
-    unsure.appendChild(document.createTextNode('入力内容がわからない・不安'));
+    unsure.appendChild(document.createTextNode('入力不明・不安'));
     inputs.appendChild(field);
     inputs.appendChild(value);
+    var basis = null;
+    if (row.field === '年齢') {
+      basis = document.createElement('span');
+      basis.className = 'age-basis';
+      basis.dataset.ageBasis = row.id;
+      inputs.appendChild(basis);
+    }
     inputs.appendChild(unsure);
     if (del) inputs.appendChild(del);
     line.appendChild(inputs);
@@ -717,7 +794,7 @@
       ageHint.className = 'hint';
       ageHint.dataset.ageHint = row.id;
       line.appendChild(ageHint);
-      updateAgeHint(row);
+      updateAgeHint(row, ageHint, basis);
     }
     return line;
   }
@@ -729,10 +806,14 @@
       input.className = 'value';
       input.type = 'text';
       input.value = row.value || '';
-      input.placeholder = '内容';
+      input.placeholder = PLACEHOLDERS[row.field] || '例';
+      input.readOnly = fieldLocked(row.field);
       tagValue(input, row);
       input.addEventListener('focus', function () { input.dataset.before = row.value || ''; });
       input.addEventListener('input', function () {
+        if (fieldLocked(row.field)) return;
+        if (isFurigana(row.field)) input.value = katakanaOnly(input.value);
+        if (row.field === '年齢') input.value = digitsOnly(input.value);
         clearIfEmptied(row, 'value', input);
         commitRowValue(row, input.value);
       });
@@ -750,7 +831,7 @@
       var value = choiceValue(choice);
       wrap.appendChild(radioLabel('choice-' + row.id, value, choiceLabel(choice), row.value === value, function () {
         commitRowValue(row, value);
-      }, function () { focusNextRow(row); }));
+      }, function () { focusNextRow(row); }, fieldLocked(row.field)));
     });
     return wrap;
   }
@@ -759,6 +840,24 @@
     el.dataset.row = row.id;
     el.dataset.part = 'value';
     el.dataset.order = String(row.order);
+  }
+
+  function fieldLocked(field) {
+    return mode === 'b' && SENKAN_FIELDS.indexOf(field) !== -1;
+  }
+
+  function isFurigana(field) {
+    return field === 'ふりがな（氏）' || field === 'ふりがな（名）';
+  }
+
+  function digitsOnly(text) {
+    return String(text || '').replace(/[０-９]/g, function (ch) {
+      return String.fromCharCode(ch.charCodeAt(0) - 0xFEE0);
+    }).replace(/\D/g, '');
+  }
+
+  function katakanaOnly(text) {
+    return String(text || '').replace(/[^ァ-ヶー・]/g, '');
   }
 
   function choiceValue(choice) {
@@ -777,14 +876,14 @@
     return list;
   }
 
-  function radioLabel(name, value, label, checked, onPick, onEnter) {
+  function radioLabel(name, value, label, checked, onPick, onEnter, forceDisabled) {
     var wrap = document.createElement('label');
     var radio = document.createElement('input');
     radio.type = 'radio';
     radio.name = name;
     radio.value = value;
     radio.checked = !!checked;
-    radio.disabled = locked;
+    radio.disabled = locked || !!forceDisabled;
     radio.addEventListener('change', function () {
       if (radio.checked) onPick();
     });
@@ -800,12 +899,14 @@
 
   function commitRowValue(row, next) {
     row.value = next;
+    if (row.field === '性別') row.genderDefaulted = true;
     if (row.field === '年齢') row.manual = !!String(next || '').trim();
     markEditing();
     persist();
     if (row.field === '生年月日' || (row.field === '年齢' && !row.manual)) syncAge(row.order);
     if (row.field === '年齢') updateAgeHint(row);
     reflectBulk(row);
+    paintBulkButtons();
   }
 
   function focusNextRow(row) {
@@ -836,6 +937,7 @@
       });
     });
     $('bulkClose').addEventListener('click', function () { $('bulkPanel').hidden = true; });
+    dragBulk();
   }
 
   function openBulk(field) {
@@ -849,138 +951,16 @@
   function renderBulk() {
     var field = $('bulkPanel').dataset.field;
     var body = $('bulkBody');
-    var flowFocus = document.activeElement && document.activeElement.id === 'bulkFlow'
-      ? document.activeElement.selectionStart : null;
     body.innerHTML = '';
     if (!field || !fileRec) return;
-    var textMode = !VALUE_CHOICES[field];
-    if (textMode) body.appendChild(bulkModeSwitch());
-    if (textMode && $('bulkPanel').dataset.entry === 'flow') body.appendChild(bulkFlow(field, flowFocus));
-    else {
-      var total = candidateSlotCount();
-      for (var order = 1; order <= total; order++) body.appendChild(bulkLine(order, field));
-    }
+    var total = candidateSlotCount();
+    for (var order = 1; order <= total; order++) body.appendChild(bulkLine(order, field));
     var add = document.createElement('button');
     add.type = 'button';
     add.className = 'bulk-add';
     add.textContent = '候補者を増やす';
     add.addEventListener('click', addCandidateSlot);
     body.appendChild(add);
-  }
-
-  function bulkModeSwitch() {
-    var bar = document.createElement('div');
-    bar.className = 'bulk-switch';
-    var entry = $('bulkPanel').dataset.entry === 'flow' ? 'flow' : 'rows';
-    [['rows', '候補者ごと'], ['flow', '上から入力']].forEach(function (item) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = item[1];
-      if (entry === item[0]) btn.className = 'current';
-      btn.addEventListener('click', function () {
-        $('bulkPanel').dataset.entry = item[0];
-        renderBulk();
-        if (item[0] === 'flow') {
-          var area = $('bulkFlow');
-          if (area) area.focus();
-        }
-      });
-      bar.appendChild(btn);
-    });
-    return bar;
-  }
-
-  function bulkFlow(field, caret) {
-    var box = document.createElement('div');
-    box.className = 'bulk-flow';
-    var note = document.createElement('p');
-    note.className = 'hint';
-    note.textContent = '上から1人1行です。1行目が候補者1です。';
-    var area = document.createElement('textarea');
-    area.id = 'bulkFlow';
-    area.value = flowText(field);
-    var flags = document.createElement('div');
-    var shown = area.value === '' ? 0 : area.value.split('\n').length;
-    area.addEventListener('input', function () {
-      var lines = area.value.split('\n');
-      var prev = shown;
-      shown = lines.length;
-      writeFlow(field, lines, prev);
-      renderFlowFlags(field, flags, lines);
-    });
-    renderFlowFlags(field, flags, area.value === '' ? [] : area.value.split('\n'));
-    box.appendChild(note);
-    box.appendChild(area);
-    box.appendChild(flags);
-    if (caret != null) {
-      setTimeout(function () {
-        area.focus();
-        area.selectionStart = area.selectionEnd = caret;
-      }, 0);
-    }
-    return box;
-  }
-
-  function flowText(field) {
-    var total = candidateSlotCount();
-    var lines = [];
-    var last = 0;
-    for (var order = 1; order <= total; order++) {
-      var row = findBulkRow(order, field);
-      var value = row ? (row.value || '') : '';
-      lines.push(value);
-      if (value) last = order;
-    }
-    if (!last) return '';
-    return lines.slice(0, last).join('\n');
-  }
-
-  function writeFlow(field, lines, previousCount) {
-    var before = candidateSlotCount();
-    if (lines.length > before) {
-      fileRec.candidateSlots = lines.length;
-      if (mode === 'b') {
-        for (var n = before + 1; n <= lines.length; n++) ensureOrder(n);
-      }
-      renderForm();
-    }
-    lines.forEach(function (line, index) {
-      var row = ensureBulkRow(index + 1, field);
-      if (row.value !== line) {
-        row.value = line;
-        if (field === '年齢') row.manual = !!String(line || '').trim();
-        reflectForm(row);
-      }
-    });
-    for (var order = lines.length + 1; order <= previousCount; order++) {
-      var row = findBulkRow(order, field);
-      if (!row || !row.value) continue;
-      row.value = '';
-      if (field === '年齢') row.manual = false;
-      reflectForm(row);
-    }
-    markEditing();
-    persist();
-  }
-
-  function renderFlowFlags(field, flags, lines) {
-    flags.innerHTML = '';
-    var list = lines && lines.length ? lines : [''];
-    list.forEach(function (text, index) {
-      var order = index + 1;
-      var row = findBulkRow(order, field);
-      var line = document.createElement('div');
-      line.className = 'bulk-row';
-      var name = document.createElement('b');
-      name.textContent = '候補者 ' + order;
-      var copied = document.createElement('span');
-      copied.className = 'bulk-copied';
-      copied.textContent = text || '';
-      line.appendChild(name);
-      line.appendChild(copied);
-      line.appendChild(unsureToggle(order, field, row));
-      flags.appendChild(line);
-    });
   }
 
   function addCandidateSlot() {
@@ -1011,7 +991,8 @@
       reflectForm(row);
     });
     label.appendChild(box);
-    label.appendChild(document.createTextNode('自信ない・不明'));
+    label.appendChild(document.createTextNode('入力不明・不安'));
+    if (mode === 'b') box.disabled = true;
     return label;
   }
 
@@ -1033,6 +1014,8 @@
   }
 
   function bulkLine(order, field) {
+    if (field === 'ふりがな') return furiganaBulkLine(order);
+    if (field === '年齢') return ageBulkLine(order);
     var existing = findBulkRow(order, field);
     var line = document.createElement('div');
     line.className = 'bulk-row';
@@ -1040,13 +1023,18 @@
     name.textContent = '候補者 ' + order;
     line.appendChild(name);
     var choices = VALUE_CHOICES[field];
+    var readOnly = mode === 'b';
     if (!choices) {
       var input = document.createElement('input');
       input.type = 'text';
       input.value = existing ? (existing.value || '') : '';
+      input.readOnly = readOnly;
+      input.placeholder = PLACEHOLDERS[field] || '';
       input.dataset.bulkOrder = String(order);
       input.dataset.bulkField = field;
       input.addEventListener('input', function () {
+        if (readOnly) return;
+        if (field === '届け出番号') input.value = digitsOnly(input.value);
         var row = ensureBulkRow(order, field);
         input.dataset.row = row.id;
         commitRowValue(row, input.value);
@@ -1065,36 +1053,169 @@
     wrap.className = 'radios';
     wrap.dataset.bulkOrder = String(order);
     wrap.dataset.bulkField = field;
+    var picked = existing ? existing.value : (field === '性別' ? '男' : null);
     choiceList(choices, existing ? existing.value : '').forEach(function (choice) {
       var value = choiceValue(choice);
-      wrap.appendChild(radioLabel('bulk-' + field + '-' + order, value, choiceLabel(choice), existing && existing.value === value, function () {
+      wrap.appendChild(radioLabel('bulk-' + field + '-' + order, value, choiceLabel(choice), picked === value && (existing || field === '性別'), function () {
+        if (readOnly) return;
         var row = ensureBulkRow(order, field);
         commitRowValue(row, value);
         reflectForm(row);
       }, function () {
         focusValue(document.querySelector('#bulkBody [data-bulk-order="' + (order + 1) + '"]'));
-      }));
+      }, readOnly));
     });
     line.appendChild(wrap);
     line.appendChild(unsureToggle(order, field, existing));
     return line;
   }
 
-  function reflectBulk(row) {
-    if ($('bulkPanel').hidden || $('bulkPanel').dataset.field !== row.field) return;
-    reflectBulkUnsure(row);
-    var area = $('bulkFlow');
-    if (area) {
-      if (area !== document.activeElement) area.value = flowText(row.field);
+  function furiganaBulkLine(order) {
+    var line = document.createElement('div');
+    line.className = 'bulk-row';
+    var name = document.createElement('b');
+    name.textContent = '候補者 ' + order;
+    line.appendChild(name);
+    var parts = document.createElement('div');
+    parts.className = 'kana-parts';
+    [['ふりがな（氏）', '氏', 'ヤマダ'], ['ふりがな（名）', '名', 'タロウ']].forEach(function (spec) {
+      var label = document.createElement('span');
+      label.textContent = spec[1];
+      var input = document.createElement('input');
+      input.type = 'text';
+      var existing = findBulkRow(order, spec[0]);
+      input.value = existing ? (existing.value || '') : '';
+      input.placeholder = spec[2];
+      input.readOnly = mode === 'b';
+      input.dataset.bulkOrder = String(order);
+      input.dataset.bulkField = spec[0];
+      input.addEventListener('input', function () {
+        if (mode === 'b') return;
+        input.value = katakanaOnly(input.value);
+        var row = ensureBulkRow(order, spec[0]);
+        commitRowValue(row, input.value);
+        reflectForm(row);
+      });
+      parts.appendChild(label);
+      parts.appendChild(input);
+    });
+    line.appendChild(parts);
+    var family = findBulkRow(order, 'ふりがな（氏）');
+    line.appendChild(unsureToggle(order, 'ふりがな（氏）', family));
+    return line;
+  }
+
+  function ageBulkLine(order) {
+    var line = document.createElement('div');
+    line.className = 'bulk-row';
+    var name = document.createElement('b');
+    name.textContent = '候補者 ' + order;
+    line.appendChild(name);
+    var parts = document.createElement('div');
+    parts.className = 'age-parts';
+    var birth = findBulkRow(order, '生年月日');
+    var parsed = birth ? parseJapaneseDate(birth.value) : null;
+    var seeds = parsed ? [parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate()] : ['', '', ''];
+    ['y', 'm', 'd'].forEach(function (part, index) {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.value = seeds[index] === '' ? '' : String(seeds[index]);
+      input.placeholder = ['年', '月', '日'][index];
+      input.readOnly = mode === 'b';
+      input.dataset.bulkOrder = String(order);
+      input.dataset.agePart = part;
+      input.addEventListener('input', function () {
+        if (mode === 'b') return;
+        input.value = digitsOnly(input.value);
+        applyAgeParts(order);
+      });
+      parts.appendChild(input);
+      if (index < 2) {
+        var slash = document.createElement('span');
+        slash.textContent = '/';
+        parts.appendChild(slash);
+      }
+    });
+    line.appendChild(parts);
+    var age = findBulkRow(order, '年齢');
+    var shown = document.createElement('span');
+    shown.className = 'bulk-copied';
+    shown.dataset.ageShown = String(order);
+    shown.textContent = age && age.value ? age.value + '歳' : '';
+    line.appendChild(shown);
+    line.appendChild(unsureToggle(order, '年齢', age));
+    return line;
+  }
+
+  function applyAgeParts(order) {
+    var boxes = ['y', 'm', 'd'].map(function (part) {
+      return document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-part="' + part + '"]');
+    });
+    var nums = boxes.map(function (box) { return box ? digitsOnly(box.value) : ''; });
+    var birth = ensureBulkRow(order, '生年月日');
+    var ageRow = ensureBulkRow(order, '年齢');
+    if (nums[0] && nums[1] && nums[2]) {
+      var dt = makeDate(Number(nums[0]), Number(nums[1]), Number(nums[2]));
+      if (!dt) return;
+      birth.value = nums[0] + '-' + nums[1] + '-' + nums[2];
+      ageRow.manual = false;
+      syncAge(order);
+    } else if (!nums[0] && !nums[1] && !nums[2]) {
+      birth.value = '';
+      if (!ageRow.manual) ageRow.value = '';
+    } else {
       return;
     }
+    markEditing();
+    persist();
+    reflectForm(birth);
+    reflectForm(ageRow);
+    var shown = document.querySelector('[data-age-shown="' + order + '"]');
+    if (shown) shown.textContent = ageRow.value ? ageRow.value + '歳' : '';
+    paintBulkButtons();
+  }
+
+  function bulkRelated(openField, rowField) {
+    if (openField === rowField) return true;
+    if (openField === 'ふりがな' && isFurigana(rowField)) return true;
+    if (openField === '年齢' && (rowField === '年齢' || rowField === '生年月日')) return true;
+    return false;
+  }
+
+  function reflectBulk(row) {
+    paintBulkButtons();
+    var openField = $('bulkPanel').dataset.field;
+    if ($('bulkPanel').hidden || !bulkRelated(openField, row.field)) return;
+    reflectBulkUnsure(row);
     var text = document.querySelector('#bulkBody input[type="text"][data-bulk-order="' + row.order + '"][data-bulk-field="' + row.field + '"]');
     if (text && text !== document.activeElement && text.value !== (row.value || '')) text.value = row.value || '';
     var wrap = document.querySelector('#bulkBody .radios[data-bulk-order="' + row.order + '"][data-bulk-field="' + row.field + '"]');
-    if (!wrap) return;
-    wrap.querySelectorAll('input').forEach(function (radio) {
-      radio.checked = radio.value === (row.value || '');
+    if (wrap) {
+      wrap.querySelectorAll('input').forEach(function (radio) {
+        radio.checked = radio.value === (row.value || '');
+      });
+    }
+    if (row.field === '生年月日' || row.field === '年齢') reflectAgeBulk(row.order);
+  }
+
+  function reflectAgeBulk(order) {
+    if ($('bulkPanel').hidden || $('bulkPanel').dataset.field !== '年齢') return;
+    var birth = findBulkRow(order, '生年月日');
+    var parsed = birth ? parseJapaneseDate(birth.value) : null;
+    ['y', 'm', 'd'].forEach(function (part, index) {
+      var input = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-part="' + part + '"]');
+      if (!input || input === document.activeElement) return;
+      if (!parsed) {
+        if (!birth || !String(birth.value || '').trim()) input.value = '';
+        return;
+      }
+      var next = String(index === 0 ? parsed.getFullYear() : index === 1 ? parsed.getMonth() + 1 : parsed.getDate());
+      input.value = next;
     });
+    var age = findBulkRow(order, '年齢');
+    var shown = document.querySelector('[data-age-shown="' + order + '"]');
+    if (shown) shown.textContent = age && age.value ? age.value + '歳' : '';
   }
 
   function reflectBulkUnsure(row) {
@@ -1117,10 +1238,30 @@
     if (row.field === '年齢') updateAgeHint(row);
   }
 
+  function bulkStoredFields(key) {
+    if (key === 'ふりがな') return ['ふりがな（氏）', 'ふりがな（名）'];
+    if (key === '年齢') return ['年齢', '生年月日'];
+    return [key];
+  }
+
   function hasBulkValue() {
     if (!fileRec) return false;
+    return BULK_FIELDS.some(function (key) {
+      return bulkFieldHasValue(key);
+    });
+  }
+
+  function bulkFieldHasValue(key) {
+    var names = bulkStoredFields(key);
     return fileRec.rows.some(function (row) {
-      return BULK_FIELDS.indexOf(row.field) !== -1 && String(row.value || '').trim();
+      return names.indexOf(row.field) !== -1 && String(row.value || '').trim();
+    });
+  }
+
+  function paintBulkButtons() {
+    if (!fileRec) return;
+    document.querySelectorAll('[data-bulk]').forEach(function (btn) {
+      btn.classList.toggle('filled', bulkFieldHasValue(btn.getAttribute('data-bulk')));
     });
   }
 
@@ -1135,6 +1276,14 @@
     if (!fileRec) return;
     fileRec.rows.forEach(function (row) {
       if (row.field === '新現元別') row.field = '新現元';
+      if (row.field === '党派') row.field = '政党';
+    });
+    fileRec.rows = fileRec.rows.filter(function (row) {
+      if (REMOVED_FIELDS.indexOf(row.field) === -1) return true;
+      return !!String(row.value || '').trim();
+    });
+    fileRec.rows.forEach(function (row) {
+      if (row.fixed && FIXED_FIELDS.indexOf(row.field) === -1) row.fixed = false;
     });
     migrateCandidateSlots();
   }
@@ -1173,9 +1322,10 @@
         id: uid(),
         order: order,
         field: name,
-        value: name === '届け出番号' ? String(order) : '',
+        value: name === '届け出番号' ? String(order) : (name === '性別' ? '男' : ''),
         fixed: true,
-        filingDefaulted: name === '届け出番号'
+        filingDefaulted: name === '届け出番号',
+        genderDefaulted: name === '性別'
       });
       added = true;
     });
@@ -1191,6 +1341,11 @@
       if (hit.field === '届け出番号' && !hit.filingDefaulted) {
         hit.filingDefaulted = true;
         if (!String(hit.value || '').trim()) hit.value = String(order);
+        added = true;
+      }
+      if (hit.field === '性別' && !hit.genderDefaulted) {
+        hit.genderDefaulted = true;
+        if (!String(hit.value || '').trim()) hit.value = '男';
         added = true;
       }
       fixedRows.push(hit);
@@ -1225,7 +1380,15 @@
     if (!birth || !ageRow || ageRow.manual) return;
     var dt = parseJapaneseDate(birth.value);
     var age = dt ? fullAge(dt) : null;
-    if (age == null) return;
+    if (age == null) {
+      if (!String(birth.value || '').trim()) {
+        ageRow.value = '';
+        var cleared = document.querySelector('[data-row="' + ageRow.id + '"][data-part="value"]');
+        if (cleared) cleared.value = '';
+        updateAgeHint(ageRow);
+      }
+      return;
+    }
     ageRow.value = String(age);
     var input = document.querySelector('[data-row="' + ageRow.id + '"][data-part="value"]');
     if (input) input.value = ageRow.value;
@@ -1233,11 +1396,15 @@
     persist();
   }
 
-  function updateAgeHint(row) {
-    var hint = document.querySelector('[data-age-hint="' + row.id + '"]');
-    if (!hint) return;
-    hint.hidden = false;
-    hint.textContent = row.manual ? '手入力' : (row.value ? '生年月日から計算（今日時点の満年齢）' : '生年月日を入れると計算します');
+  function updateAgeHint(row, hintEl, basisEl) {
+    var hint = hintEl || document.querySelector('[data-age-hint="' + row.id + '"]');
+    var basis = basisEl || document.querySelector('[data-age-basis="' + row.id + '"]');
+    var label = ageBasis().today ? '今日時点' : '投開票日時点';
+    if (hint) {
+      hint.hidden = false;
+      hint.textContent = row.manual ? '手入力' : (row.value ? label : '生年月日を入れると計算します');
+    }
+    if (basis) basis.textContent = !row.manual && row.value ? label : '';
   }
 
   function parseJapaneseDate(text) {
@@ -1263,12 +1430,31 @@
     return dt;
   }
 
+  function ageBasis() {
+    var raw = fileRec && fileRec.electionDate;
+    if (raw) {
+      var parts = String(raw).split('-');
+      var picked = makeDate(Number(parts[0]), Number(parts[1]), Number(parts[2]));
+      if (picked) return { date: picked, today: false };
+    }
+    return { date: new Date(), today: true };
+  }
+
   function fullAge(dt) {
-    var today = new Date();
-    var age = today.getFullYear() - dt.getFullYear();
-    var month = today.getMonth() - dt.getMonth();
-    if (month < 0 || (month === 0 && today.getDate() < dt.getDate())) age -= 1;
+    var basis = ageBasis().date;
+    var age = basis.getFullYear() - dt.getFullYear();
+    var month = basis.getMonth() - dt.getMonth();
+    if (month < 0 || (month === 0 && basis.getDate() < dt.getDate())) age -= 1;
     return age >= 0 ? age : null;
+  }
+
+  function refreshAges() {
+    if (!fileRec) return;
+    var n = candidateSlotCount();
+    for (var i = 1; i <= n; i++) syncAge(i);
+    renderForm();
+    if (!$('bulkPanel').hidden) renderBulk();
+    paintBulkButtons();
   }
 
   function setupPanel() {
@@ -1281,6 +1467,7 @@
     if (!head || !resize) return;
     head.addEventListener('pointerdown', function (ev) {
       if (mode !== 'b' || ev.button !== 0) return;
+      if (ev.target.closest && ev.target.closest('button')) return;
       var startX = ev.clientX;
       var startY = ev.clientY;
       var moved = false;
@@ -1323,6 +1510,36 @@
           parseFloat(panel.style.left) || 0,
           parseFloat(panel.style.top) || 0
         );
+      }
+      function up() {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
+    var corner = panel.querySelector('.sheetCorner');
+    if (!corner) return;
+    corner.addEventListener('pointerdown', function (ev) {
+      if (mode !== 'b' || ev.button !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var startX = ev.clientX;
+      var startY = ev.clientY;
+      var startW = panel.offsetWidth;
+      var startH = panel.offsetHeight;
+      var floating = panel.classList.contains('floating');
+      var growLeft = !document.body.classList.contains('flip') && !floating;
+      function move(e) {
+        var dx = e.clientX - startX;
+        var width = growLeft ? startW - dx : startW + dx;
+        width = Math.max(280, Math.min(window.innerWidth - 16, width));
+        panel.style.width = width + 'px';
+        if (panel.classList.contains('floating')) {
+          var height = Math.max(120, Math.min(window.innerHeight - 16, startH + (e.clientY - startY)));
+          panel.style.height = height + 'px';
+          placeFloat(panel, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0);
+        }
       }
       function up() {
         window.removeEventListener('pointermove', move);
@@ -1458,6 +1675,7 @@
       fileRec.status = '確認完了';
       fileRec.aName = $('name').value.trim();
       fileRec.aDoneAt = Date.now();
+      $('aPreview').hidden = true;
       persist(true);
       locked = checkLock();
       updateChrome();
@@ -1467,10 +1685,131 @@
         if (choice === 'secondary') done();
       });
     } else {
-      ask('確認完了にします。', '確認完了', '戻る').then(function (choice) {
-        if (choice === 'primary') done();
-      });
+      done();
     }
+  }
+
+  function openAPreview() {
+    if (!ensureFile()) return;
+    if (!fileRec.pins.length && !hasBulkValue()) { showToast('印も一括確認もありません'); return; }
+    $('aPreview').hidden = false;
+    renderAPreview();
+  }
+
+  function renderAPreview() {
+    var body = $('aPreviewBody');
+    body.innerHTML = '';
+    body.appendChild(previewBlock('メモ', fileRec.memo || '（なし）'));
+    body.appendChild(previewBlock('投開票日', fileRec.electionDate || '未入力（年齢は今日時点）'));
+    BULK_FIELDS.forEach(function (key) {
+      var lines = [];
+      var total = candidateSlotCount();
+      for (var order = 1; order <= total; order++) {
+        var bits = bulkStoredFields(key).map(function (name) {
+          var row = findBulkRow(order, name);
+          return row && String(row.value || '').trim() ? row.value : '';
+        }).filter(Boolean);
+        if (bits.length) lines.push('候補者 ' + order + '  ' + bits.join(' / '));
+      }
+      body.appendChild(previewBlock(key, lines.length ? lines.join('\n') : '（なし）'));
+    });
+    var pins = document.createElement('div');
+    pins.className = 'preview-block';
+    var title = document.createElement('b');
+    title.textContent = '印';
+    pins.appendChild(title);
+    if (!fileRec.pins.length) pins.appendChild(note('印はありません'));
+    fileRec.pins.forEach(function (pin) {
+      var line = document.createElement('div');
+      line.style.marginTop = '8px';
+      line.textContent = pin.no + '  p' + pin.page;
+      var answer = document.createElement('div');
+      answer.className = 'right-answer';
+      answer.textContent = pin.answer || '（空）';
+      line.appendChild(answer);
+      if (pin.unsure) {
+        var flag = document.createElement('small');
+        flag.textContent = '入力不明・不安';
+        line.appendChild(flag);
+      }
+      pins.appendChild(line);
+    });
+    body.appendChild(pins);
+  }
+
+  function previewBlock(label, text) {
+    var block = document.createElement('div');
+    block.className = 'preview-block';
+    var title = document.createElement('b');
+    title.textContent = label;
+    var body = document.createElement('div');
+    body.style.whiteSpace = 'pre-wrap';
+    body.textContent = text;
+    block.appendChild(title);
+    block.appendChild(body);
+    return block;
+  }
+
+  function openMemo() {
+    if (!fileRec) { showToast('PDFを開いてください'); return; }
+    $('memoText').value = fileRec.memo || '';
+    $('memoText').readOnly = mode !== 'a' || locked;
+    $('memoPanel').hidden = false;
+    if (mode === 'a' && !locked) $('memoText').focus();
+  }
+
+  function renderMemo() {
+    var box = $('memoRead');
+    var text = fileRec ? String(fileRec.memo || '').trim() : '';
+    box.hidden = !text;
+    box.textContent = text ? 'メモ\n' + fileRec.memo : '';
+  }
+
+  function resetPanels() {
+    ['checksPanel', 'formPanel'].forEach(function (id) {
+      var panel = $(id);
+      panel.classList.remove('floating', 'minimized');
+      panel.style.left = '';
+      panel.style.top = '';
+      panel.style.width = '';
+      panel.style.height = '';
+      panel.style.right = '';
+      panel.style.zIndex = '';
+    });
+    $('formMin').textContent = 'ー';
+    if (!document.body.classList.contains('reviewing')) {
+      $('formHeadText').textContent = '入力欄（ドラッグで移動）';
+    }
+  }
+
+  function dragBulk() {
+    var panel = $('bulkPanel');
+    var header = panel.querySelector('header');
+    header.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) return;
+      if (ev.target.closest && ev.target.closest('button')) return;
+      var origin = panel.getBoundingClientRect();
+      var startX = ev.clientX;
+      var startY = ev.clientY;
+      panel.style.width = origin.width + 'px';
+      panel.style.left = origin.left + 'px';
+      panel.style.top = origin.top + 'px';
+      panel.style.right = 'auto';
+      function move(e) {
+        var left = origin.left + (e.clientX - startX);
+        var top = origin.top + (e.clientY - startY);
+        var maxLeft = Math.max(8, window.innerWidth - panel.offsetWidth - 8);
+        var maxTop = Math.max(8, window.innerHeight - 80);
+        panel.style.left = Math.max(8, Math.min(maxLeft, left)) + 'px';
+        panel.style.top = Math.max(8, Math.min(maxTop, top)) + 'px';
+      }
+      function up() {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
   }
 
   function offerReeditA() {
@@ -1571,6 +1910,11 @@
     $('completeA').disabled = !editing;
     $('reviewBtn').disabled = !editing;
     $('completeB').disabled = !editing;
+    $('electionDate').disabled = mode !== 'a' || !editing;
+    if (document.activeElement !== $('electionDate')) {
+      $('electionDate').value = fileRec && fileRec.electionDate ? fileRec.electionDate : '';
+    }
+    $('memoText').readOnly = mode !== 'a' || !editing;
   }
 
   function persist(immediate) {
