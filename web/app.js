@@ -134,6 +134,7 @@
       return;
     }
     fileRec.electionDate = $('electionDate').value;
+    fileRec.electionDefaulted = true;
     markEditing();
     persist();
     refreshAges();
@@ -260,6 +261,7 @@
       pdfDoc = opened.doc;
       fileRec = takeFile(opened.hash, fileName, pdfDoc.numPages);
       migrateRowFields();
+      if (ensureElectionDate()) writeStoreFile();
       undoStack = readUndo(opened.hash);
       selectedId = null;
       locked = false;
@@ -1111,16 +1113,29 @@
     var name = document.createElement('b');
     name.textContent = '候補者 ' + order;
     line.appendChild(name);
+    var saved = readAgeEntry(findBulkRow(order, '生年月日'));
+    var cal = document.createElement('div');
+    cal.className = 'age-cal';
+    cal.appendChild(ageChoice(order, 'wareki', '和暦', saved && saved.kind === 'wareki'));
+    var eras = document.createElement('span');
+    eras.className = 'era-picks';
+    ['平成', '令和'].forEach(function (era) {
+      eras.appendChild(ageChoice(order, 'era', era, saved && saved.era === era));
+    });
+    cal.appendChild(eras);
+    cal.appendChild(ageChoice(order, 'western', '西暦', saved && saved.kind === 'western'));
+    var note = document.createElement('span');
+    note.className = 'age-note';
+    note.textContent = '1980～';
+    cal.appendChild(note);
+    line.appendChild(cal);
     var parts = document.createElement('div');
     parts.className = 'age-parts';
-    var birth = findBulkRow(order, '生年月日');
-    var parsed = birth ? parseJapaneseDate(birth.value) : null;
-    var seeds = parsed ? [parsed.getFullYear(), parsed.getMonth() + 1, parsed.getDate()] : ['', '', ''];
     ['y', 'm', 'd'].forEach(function (part, index) {
       var input = document.createElement('input');
       input.type = 'text';
       input.inputMode = 'numeric';
-      input.value = seeds[index] === '' ? '' : String(seeds[index]);
+      input.value = saved ? saved[['y', 'm', 'd'][index]] : '';
       input.placeholder = ['年', '月', '日'][index];
       input.readOnly = mode === 'b';
       input.dataset.bulkOrder = String(order);
@@ -1131,11 +1146,6 @@
         applyAgeParts(order);
       });
       parts.appendChild(input);
-      if (index < 2) {
-        var slash = document.createElement('span');
-        slash.textContent = '/';
-        parts.appendChild(slash);
-      }
     });
     line.appendChild(parts);
     var age = findBulkRow(order, '年齢');
@@ -1148,6 +1158,47 @@
     return line;
   }
 
+  function ageChoice(order, group, value, checked) {
+    var label = document.createElement('label');
+    var radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = group === 'era' ? 'age-era-' + order : 'age-cal-' + order;
+    radio.value = value;
+    radio.checked = !!checked;
+    radio.disabled = mode === 'b';
+    radio.dataset.bulkOrder = String(order);
+    radio.dataset.ageGroup = group;
+    radio.addEventListener('change', function () {
+      if (mode === 'b' || !radio.checked) return;
+      if (group === 'era') {
+        var wareki = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="wareki"]');
+        if (wareki) wareki.checked = true;
+      }
+      if (group === 'western') {
+        document.querySelectorAll('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="era"]').forEach(function (el) {
+          el.checked = false;
+        });
+      }
+      applyAgeParts(order);
+    });
+    label.appendChild(radio);
+    label.appendChild(document.createTextNode(value === 'wareki' ? '和暦' : value === 'western' ? '西暦' : value));
+    return label;
+  }
+
+  function selectedAgeKind(order) {
+    var wareki = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="wareki"]');
+    var western = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="western"]');
+    if (wareki && wareki.checked) return 'wareki';
+    if (western && western.checked) return 'western';
+    return '';
+  }
+
+  function selectedEra(order) {
+    var picked = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="era"]:checked');
+    return picked ? picked.value : '';
+  }
+
   function applyAgeParts(order) {
     var boxes = ['y', 'm', 'd'].map(function (part) {
       return document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-part="' + part + '"]');
@@ -1155,15 +1206,21 @@
     var nums = boxes.map(function (box) { return box ? digitsOnly(box.value) : ''; });
     var birth = ensureBulkRow(order, '生年月日');
     var ageRow = ensureBulkRow(order, '年齢');
-    if (nums[0] && nums[1] && nums[2]) {
-      var dt = makeDate(Number(nums[0]), Number(nums[1]), Number(nums[2]));
-      if (!dt) return;
-      birth.value = nums[0] + '-' + nums[1] + '-' + nums[2];
-      ageRow.manual = false;
-      syncAge(order);
-    } else if (!nums[0] && !nums[1] && !nums[2]) {
+    var shown = document.querySelector('[data-age-shown="' + order + '"]');
+    if (!nums[0] && !nums[1] && !nums[2]) {
       birth.value = '';
       if (!ageRow.manual) ageRow.value = '';
+      if (shown) shown.textContent = '';
+    } else if (nums[0] && nums[1] && nums[2] && selectedAgeKind(order)) {
+      var built = buildAgeDate(selectedAgeKind(order), selectedEra(order), nums[0], nums[1], nums[2]);
+      if (!built) {
+        if (shown) shown.textContent = selectedAgeKind(order) === 'western' ? '1980年以降' : '日付を確認';
+        return;
+      }
+      birth.value = built.text;
+      ageRow.manual = false;
+      syncAge(order);
+      if (shown) shown.textContent = ageRow.value ? ageRow.value + '歳' : '';
     } else {
       return;
     }
@@ -1171,8 +1228,6 @@
     persist();
     reflectForm(birth);
     reflectForm(ageRow);
-    var shown = document.querySelector('[data-age-shown="' + order + '"]');
-    if (shown) shown.textContent = ageRow.value ? ageRow.value + '歳' : '';
     paintBulkButtons();
   }
 
@@ -1201,21 +1256,71 @@
 
   function reflectAgeBulk(order) {
     if ($('bulkPanel').hidden || $('bulkPanel').dataset.field !== '年齢') return;
-    var birth = findBulkRow(order, '生年月日');
-    var parsed = birth ? parseJapaneseDate(birth.value) : null;
-    ['y', 'm', 'd'].forEach(function (part, index) {
-      var input = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-part="' + part + '"]');
-      if (!input || input === document.activeElement) return;
-      if (!parsed) {
-        if (!birth || !String(birth.value || '').trim()) input.value = '';
-        return;
-      }
-      var next = String(index === 0 ? parsed.getFullYear() : index === 1 ? parsed.getMonth() + 1 : parsed.getDate());
-      input.value = next;
+    var saved = readAgeEntry(findBulkRow(order, '生年月日'));
+    ['wareki', 'western'].forEach(function (kind) {
+      var radio = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="' + kind + '"]');
+      if (radio && document.activeElement !== radio) radio.checked = !!(saved && saved.kind === kind);
     });
+    document.querySelectorAll('#bulkBody input[data-bulk-order="' + order + '"][data-age-group="era"]').forEach(function (radio) {
+      if (document.activeElement === radio) return;
+      radio.checked = !!(saved && saved.era === radio.value);
+    });
+    if (saved) {
+      ['y', 'm', 'd'].forEach(function (part) {
+        var input = document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-part="' + part + '"]');
+        if (!input || input === document.activeElement) return;
+        input.value = saved[part];
+      });
+    }
     var age = findBulkRow(order, '年齢');
     var shown = document.querySelector('[data-age-shown="' + order + '"]');
+    if (shown && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.agePart) return;
     if (shown) shown.textContent = age && age.value ? age.value + '歳' : '';
+  }
+
+  function readAgeEntry(row) {
+    var text = row ? String(row.value || '').trim() : '';
+    var wareki = text.match(/^(平成|令和)(\d+)年(\d+)月(\d+)日$/);
+    if (wareki) return { kind: 'wareki', era: wareki[1], y: wareki[2], m: wareki[3], d: wareki[4] };
+    var western = text.match(/^(\d{4})年(\d{1,2})月(\d{1,2})日$/);
+    if (western && Number(western[1]) >= 1980) return { kind: 'western', era: '', y: western[1], m: western[2], d: western[3] };
+    var iso = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+    if (iso && Number(iso[1]) >= 1980) return { kind: 'western', era: '', y: iso[1], m: iso[2], d: iso[3] };
+    return null;
+  }
+
+  function buildAgeDate(kind, eraName, y, m, d) {
+    var month = Number(m);
+    var day = Number(d);
+    if (kind === 'western') {
+      var year = Number(y);
+      if (year < 1980) return null;
+      var westernDate = makeDate(year, month, day);
+      if (!westernDate) return null;
+      return { text: year + '年' + month + '月' + day + '日' };
+    }
+    if (kind !== 'wareki' || (eraName !== '平成' && eraName !== '令和')) return null;
+    var era = ERAS.filter(function (item) { return item.name === eraName; })[0];
+    var eraYear = Number(y);
+    if (!era || eraYear < 1) return null;
+    var dt = makeDate(era.start + eraYear - 1, month, day);
+    if (!dt) return null;
+    if (eraName === '平成' && (dt < makeDate(1989, 1, 8) || dt > makeDate(2019, 4, 30))) return null;
+    if (eraName === '令和' && dt < makeDate(2019, 5, 1)) return null;
+    return { text: eraName + eraYear + '年' + month + '月' + day + '日' };
+  }
+
+  function todayISO() {
+    var now = new Date();
+    function pad(n) { return (n < 10 ? '0' : '') + n; }
+    return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
+  }
+
+  function ensureElectionDate() {
+    if (!fileRec || fileRec.electionDate || fileRec.electionDefaulted) return false;
+    fileRec.electionDate = todayISO();
+    fileRec.electionDefaulted = true;
+    return true;
   }
 
   function reflectBulkUnsure(row) {
@@ -2002,6 +2107,8 @@
       pins: [],
       rows: [],
       candidateSlots: DEFAULT_CANDIDATE_SLOTS,
+      electionDate: todayISO(),
+      electionDefaulted: true,
       updatedAt: 0
     };
   }
