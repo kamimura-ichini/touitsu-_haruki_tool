@@ -1095,6 +1095,9 @@
     dragBulk();
     dragByHeader($('aPreview'));
     dragByHeader($('memoPanel'));
+    bindFloatingResize($('aPreview'));
+    bindFloatingResize($('memoPanel'));
+    bindFloatingResize($('bulkPanel'));
   }
 
   function openBulk(field) {
@@ -2121,6 +2124,38 @@
 
   function dragBulk() {
     dragByHeader($('bulkPanel'));
+  }
+
+  function bindFloatingResize(panel) {
+    var corner = panel.querySelector('.sheetCorner');
+    if (!corner) return;
+    corner.addEventListener('pointerdown', function (ev) {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      var rect = panel.getBoundingClientRect();
+      panel.style.left = rect.left + 'px';
+      panel.style.top = rect.top + 'px';
+      panel.style.right = 'auto';
+      panel.style.width = rect.width + 'px';
+      panel.style.height = rect.height + 'px';
+      panel.style.maxHeight = 'none';
+      var startX = ev.clientX;
+      var startY = ev.clientY;
+      var startW = rect.width;
+      var startH = rect.height;
+      function move(e) {
+        panel.style.width = Math.max(280, Math.min(window.innerWidth - 16, startW + (e.clientX - startX))) + 'px';
+        panel.style.height = Math.max(160, Math.min(window.innerHeight - 16, startH + (e.clientY - startY))) + 'px';
+        placeFloat(panel, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0);
+      }
+      function up() {
+        window.removeEventListener('pointermove', move);
+        window.removeEventListener('pointerup', up);
+      }
+      window.addEventListener('pointermove', move);
+      window.addEventListener('pointerup', up);
+    });
   }
 
   function dragByHeader(panel) {
