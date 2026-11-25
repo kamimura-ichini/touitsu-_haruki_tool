@@ -162,7 +162,9 @@
       position: relative;
     }
     #formPanel { width: 520px; overflow: hidden; }
-    #formPanel > section { overflow: auto; flex: 1; min-height: 0; }
+    #formPanel > section,
+    #checksPanel > section { overflow: auto; flex: 1; min-height: 0; padding-bottom: 22px; }
+    #checksPanel { overflow: hidden; }
     #form .block { padding-bottom: 28px; }
     body.flip .sheet { border-left: 0; border-right: 1px solid var(--line); }
     body.collapsed .sheet { display: none; }
@@ -262,8 +264,10 @@
       top: 108px;
       right: 16px;
       width: min(640px, calc(100% - 32px));
-      max-height: min(72vh, 680px);
-      overflow: auto;
+      height: min(72vh, 680px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       background: #fff;
       border: 1px solid #c9d7ef;
       border-radius: 8px;
@@ -272,8 +276,7 @@
     #bulkBar button.filled { background: #1f6b4a; color: #fff; }
     #bulkBar label { display: inline-flex; align-items: center; gap: 4px; font-size: 14px; }
     #bulkPanel header {
-      position: sticky;
-      top: 0;
+      flex: none;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -299,16 +302,17 @@
       top: 108px;
       left: 16px;
       width: min(520px, calc(100% - 32px));
-      max-height: min(72vh, 680px);
-      overflow: auto;
+      height: min(72vh, 680px);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
       background: #fff;
       border: 1px solid #c9d7ef;
       border-radius: 8px;
       box-shadow: 0 8px 28px rgba(0,0,0,.22);
     }
     #aPreview header, #memoPanel header {
-      position: sticky;
-      top: 0;
+      flex: none;
       display: flex;
       justify-content: space-between;
       align-items: center;
@@ -318,6 +322,7 @@
       color: #fff;
       cursor: grab;
     }
+    .panel-scroll { overflow: auto; flex: 1; min-height: 0; padding-bottom: 22px; }
     #memoText { width: calc(100% - 24px); min-height: 140px; margin: 12px; font-size: 16px; padding: 8px; }
     .preview-block { padding: 8px 12px 12px; border-bottom: 1px solid var(--line); }
     .bulk-row {
@@ -547,21 +552,26 @@
         <button type="button" id="aPreviewDone" class="primary">完了</button>
       </span>
     </header>
-    <div id="aPreviewBody"></div>
+    <div id="aPreviewBody" class="panel-scroll"></div>
+    <div class="sheetCorner"></div>
   </div>
   <div id="memoPanel" hidden>
     <header>
       <span>メモ</span>
       <button type="button" id="closeMemo">閉じる</button>
     </header>
-    <textarea id="memoText" placeholder="このPDFについてのメモ"></textarea>
+    <div class="panel-scroll">
+      <textarea id="memoText" placeholder="このPDFについてのメモ"></textarea>
+    </div>
+    <div class="sheetCorner"></div>
   </div>
   <div id="bulkPanel" hidden>
     <header>
       <span id="bulkTitle">一括確認</span>
       <button type="button" id="bulkClose">閉じる</button>
     </header>
-    <div id="bulkBody"></div>
+    <div id="bulkBody" class="panel-scroll"></div>
+    <div class="sheetCorner"></div>
   </div>
   <datalist id="masters"></datalist>
 
@@ -578,6 +588,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=60"></script>
+  <script src="app.js?v=61"></script>
 </body>
 </html>
