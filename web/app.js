@@ -163,7 +163,7 @@
   $('backEdit').addEventListener('click', function () {
     document.body.classList.remove('reviewing');
     $('review').hidden = true;
-    $('formHeadText').textContent = '入力欄（ドラッグで移動）';
+    $('formHeadText').textContent = '入力欄';
   });
   $('completeB').addEventListener('click', completeB);
   $('addOrder').addEventListener('click', function () {
@@ -1092,9 +1092,6 @@
       });
     });
     $('bulkClose').addEventListener('click', function () { $('bulkPanel').hidden = true; });
-    dragBulk();
-    dragByHeader($('aPreview'));
-    dragByHeader($('memoPanel'));
     bindFloatingResize($('aPreview'));
     bindFloatingResize($('memoPanel'));
     bindFloatingResize($('bulkPanel'));
@@ -1789,36 +1786,8 @@
   }
 
   function bindSheet(panel) {
-    var head = panel.querySelector('.sheetHead');
     var resize = panel.querySelector('.sheetResize');
-    if (!head || !resize) return;
-    head.addEventListener('pointerdown', function (ev) {
-      if (mode !== 'b' || ev.button !== 0) return;
-      if (ev.target.closest && ev.target.closest('button')) return;
-      var startX = ev.clientX;
-      var startY = ev.clientY;
-      var moved = false;
-      var origin = panel.getBoundingClientRect();
-      function move(e) {
-        if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
-        if (!moved) {
-          moved = true;
-          panel.classList.add('floating');
-          document.body.classList.remove('collapsed');
-          panel.style.width = origin.width + 'px';
-          panel.style.left = origin.left + 'px';
-          panel.style.top = origin.top + 'px';
-          panel.style.zIndex = '16';
-        }
-        placeFloat(panel, origin.left + (e.clientX - startX), origin.top + (e.clientY - startY));
-      }
-      function up() {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-      }
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    });
+    if (!resize) return;
     resize.addEventListener('pointerdown', function (ev) {
       if (mode !== 'b') return;
       ev.preventDefault();
@@ -1832,11 +1801,6 @@
         var width = growLeft ? startW - dx : startW + dx;
         width = Math.max(280, Math.min(window.innerWidth - 80, width));
         panel.style.width = width + 'px';
-        if (panel.classList.contains('floating')) placeFloat(
-          panel,
-          parseFloat(panel.style.left) || 0,
-          parseFloat(panel.style.top) || 0
-        );
       }
       function up() {
         window.removeEventListener('pointermove', move);
@@ -1863,9 +1827,9 @@
         width = Math.max(280, Math.min(window.innerWidth - 16, width));
         panel.style.width = width + 'px';
         if (panel.classList.contains('floating')) {
-          var height = Math.max(120, Math.min(window.innerHeight - 16, startH + (e.clientY - startY)));
+          var top = parseFloat(panel.style.top) || 0;
+          var height = Math.max(120, Math.min(window.innerHeight - top - 8, startH + (e.clientY - startY)));
           panel.style.height = height + 'px';
-          placeFloat(panel, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0);
         }
       }
       function up() {
@@ -1875,15 +1839,6 @@
       window.addEventListener('pointermove', move);
       window.addEventListener('pointerup', up);
     });
-  }
-
-  function placeFloat(panel, left, top) {
-    var width = panel.offsetWidth;
-    var height = panel.offsetHeight;
-    var maxLeft = Math.max(8, window.innerWidth - width - 8);
-    var maxTop = Math.max(8, window.innerHeight - height - 8);
-    panel.style.left = Math.max(8, Math.min(maxLeft, left)) + 'px';
-    panel.style.top = Math.max(8, Math.min(maxTop, top)) + 'px';
   }
 
   function updateDup(line, row) {
@@ -2118,12 +2073,8 @@
     $('formMin').textContent = 'ー';
     $('checksMin').textContent = 'ー';
     if (!document.body.classList.contains('reviewing')) {
-      $('formHeadText').textContent = '入力欄（ドラッグで移動）';
+      $('formHeadText').textContent = '入力欄';
     }
-  }
-
-  function dragBulk() {
-    dragByHeader($('bulkPanel'));
   }
 
   function bindFloatingResize(panel) {
@@ -2144,44 +2095,13 @@
       var startY = ev.clientY;
       var startW = rect.width;
       var startH = rect.height;
+      var left = rect.left;
+      var top = rect.top;
       function move(e) {
-        panel.style.width = Math.max(280, Math.min(window.innerWidth - 16, startW + (e.clientX - startX))) + 'px';
-        panel.style.height = Math.max(160, Math.min(window.innerHeight - 16, startH + (e.clientY - startY))) + 'px';
-        placeFloat(panel, parseFloat(panel.style.left) || 0, parseFloat(panel.style.top) || 0);
-      }
-      function up() {
-        window.removeEventListener('pointermove', move);
-        window.removeEventListener('pointerup', up);
-      }
-      window.addEventListener('pointermove', move);
-      window.addEventListener('pointerup', up);
-    });
-  }
-
-  function dragByHeader(panel) {
-    var header = panel.querySelector('header');
-    header.addEventListener('pointerdown', function (ev) {
-      if (ev.button !== 0) return;
-      if (ev.target.closest && ev.target.closest('button')) return;
-      var origin = panel.getBoundingClientRect();
-      var startX = ev.clientX;
-      var startY = ev.clientY;
-      var moved = false;
-      function move(e) {
-        if (!moved && Math.hypot(e.clientX - startX, e.clientY - startY) < 4) return;
-        if (!moved) {
-          moved = true;
-          panel.style.width = origin.width + 'px';
-          panel.style.left = origin.left + 'px';
-          panel.style.top = origin.top + 'px';
-          panel.style.right = 'auto';
-        }
-        var left = origin.left + (e.clientX - startX);
-        var top = origin.top + (e.clientY - startY);
-        var maxLeft = Math.max(8, window.innerWidth - panel.offsetWidth - 8);
-        var maxTop = Math.max(8, window.innerHeight - 80);
-        panel.style.left = Math.max(8, Math.min(maxLeft, left)) + 'px';
-        panel.style.top = Math.max(8, Math.min(maxTop, top)) + 'px';
+        var maxW = Math.max(280, window.innerWidth - left - 8);
+        var maxH = Math.max(160, window.innerHeight - top - 8);
+        panel.style.width = Math.max(280, Math.min(maxW, startW + (e.clientX - startX))) + 'px';
+        panel.style.height = Math.max(160, Math.min(maxH, startH + (e.clientY - startY))) + 'px';
       }
       function up() {
         window.removeEventListener('pointermove', move);
