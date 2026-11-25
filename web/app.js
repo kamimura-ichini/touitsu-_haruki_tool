@@ -3,15 +3,15 @@
 
   var MASTERS = [
     'カナ', '年齢', '氏名', 'ふりがな', '候補者(ふりがな)氏名', '(ふりがな)通称', '通称',
-    '党派', '政党名', '職業', '肩書', '性別', '生年月日', '新現元', '新現元別', '住所', '本籍地',
+    '党派', '政党名', '職業', '肩書', '性別', '生年月日', '新現元前', '新現元', '新現元別', '住所', '本籍地',
     '選挙事務所', '選挙事務所TEL', '届出年月日',
     '届け出番号', '通称（氏）', '通称（名）', 'ふりがな（氏）', 'ふりがな（名）', '政党', '肩書'
   ];
   var FIXED_FIELDS = [
     '届け出番号', '通称（氏）', '通称（名）', 'ふりがな（氏）', 'ふりがな（名）', '性別',
-    '政党', '職業', '生年月日', '新現元', '年齢'
+    '政党', '職業', '生年月日', '新現元前', '年齢'
   ];
-  var BULK_FIELDS = ['ふりがな', '年齢', '性別', '政党', '届け出番号', '新現元', '肩書'];
+  var BULK_FIELDS = ['ふりがな', '年齢', '性別', '政党', '届け出番号', '新現元前', '肩書'];
   var REMOVED_FIELDS = ['届け出年月日', '候補者名', 'ふりがな', '通称（ふりがな）'];
   var PLACEHOLDERS = {
     '届け出番号': '1',
@@ -31,7 +31,7 @@
       { value: '女', label: '女' },
       { value: '', label: '空白' }
     ],
-    '新現元': ['', '新', '現', '元', '前']
+    '新現元前': ['', '新', '現', '元', '前']
   };
   var ERAS = [
     { name: '令和', short: 'R', start: 2019 },
@@ -287,7 +287,7 @@
     updateChrome();
     return renderPage().then(renderSide).then(function () {
       if (mode === 'b' && fileRec && String(fileRec.memo || '').trim() && !locked) openMemo();
-      if (mode === 'a' && fileRec && fileRec.status === '確認完了') offerReeditA();
+      if (mode === 'a' && fileRec && (fileRec.status === '確認完了' || fileRec.status === '入力完了')) offerReeditA();
       if (mode === 'b' && fileRec && fileRec.status === '入力完了') offerReedit();
     });
   }
@@ -702,6 +702,7 @@
       heading.style.marginBottom = '8px';
       box.appendChild(heading);
       orderedRows(order).forEach(function (row) {
+        if (mode === 'b' && row.field === '届け出番号') return;
         box.appendChild(rowLine(row));
       });
       if (mode !== 'b') {
@@ -786,13 +787,6 @@
     unsure.appendChild(document.createTextNode('入力不明・不安'));
     inputs.appendChild(field);
     inputs.appendChild(value);
-    var basis = null;
-    if (row.field === '年齢') {
-      basis = document.createElement('span');
-      basis.className = 'age-basis';
-      basis.dataset.ageBasis = row.id;
-      inputs.appendChild(basis);
-    }
     inputs.appendChild(unsure);
     if (del) inputs.appendChild(del);
     line.appendChild(inputs);
@@ -801,21 +795,140 @@
     hint.hidden = true;
     line.appendChild(hint);
     updateDup(line, row);
-    if (row.field === '年齢') {
-      var ageHint = document.createElement('div');
-      ageHint.className = 'hint';
-      ageHint.dataset.ageHint = row.id;
-      line.appendChild(ageHint);
-      updateAgeHint(row, ageHint, basis);
-    }
     return line;
   }
 
+  function formBirthControl(row) {
+    var saved = readAgeEntry(row);
+    var box = document.createElement('div');
+    box.className = 'birth-entry';
+    box.dataset.row = row.id;
+    var cal = document.createElement('div');
+    cal.className = 'age-cal';
+    cal.appendChild(formAgeChoice(row, 'wareki', '和暦', saved && saved.kind === 'wareki'));
+    var eras = document.createElement('span');
+    eras.className = 'era-picks';
+    ['平成', '昭和'].forEach(function (era) {
+      eras.appendChild(formAgeChoice(row, 'era', era, saved && saved.era === era));
+    });
+    cal.appendChild(eras);
+    cal.appendChild(formAgeChoice(row, 'western', '西暦', saved && saved.kind === 'western'));
+    var note = document.createElement('span');
+    note.className = 'age-note';
+    note.textContent = '100歳まで';
+    cal.appendChild(note);
+    box.appendChild(cal);
+    var parts = document.createElement('div');
+    parts.className = 'age-parts';
+    ['y', 'm', 'd'].forEach(function (part, index) {
+      var input = document.createElement('input');
+      input.type = 'text';
+      input.inputMode = 'numeric';
+      input.className = 'value';
+      input.value = saved ? saved[['y', 'm', 'd'][index]] : '';
+      input.placeholder = ['年', '月', '日'][index];
+      input.disabled = locked;
+      tagValue(input, row);
+      input.dataset.birthPart = part;
+      input.addEventListener('input', function () {
+        input.value = digitsOnly(input.value);
+        applyFormBirth(row);
+      });
+      parts.appendChild(input);
+    });
+    box.appendChild(parts);
+    var shown = document.createElement('span');
+    shown.className = 'bulk-copied';
+    shown.dataset.birthShown = row.id;
+    box.appendChild(shown);
+    return box;
+  }
+
+  function formAgeChoice(row, group, value, checked) {
+    var label = document.createElement('label');
+    var radio = document.createElement('input');
+    radio.type = 'radio';
+    radio.name = group === 'era' ? 'form-era-' + row.id : 'form-cal-' + row.id;
+    radio.value = value;
+    radio.checked = !!checked;
+    radio.disabled = locked;
+    radio.dataset.birthGroup = group;
+    radio.addEventListener('change', function () {
+      if (!radio.checked || locked) return;
+      var root = radio.closest('.birth-entry');
+      if (group === 'era') {
+        var wareki = root.querySelector('input[data-birth-group="wareki"]');
+        if (wareki) wareki.checked = true;
+      }
+      if (group === 'western') {
+        root.querySelectorAll('input[data-birth-group="era"]').forEach(function (el) { el.checked = false; });
+      }
+      applyFormBirth(row);
+    });
+    label.appendChild(radio);
+    label.appendChild(document.createTextNode(value === 'wareki' ? '和暦' : value === 'western' ? '西暦' : value));
+    return label;
+  }
+
+  function applyFormBirth(row) {
+    var root = document.querySelector('#orders .birth-entry[data-row="' + row.id + '"]');
+    if (!root) return;
+    var nums = ['y', 'm', 'd'].map(function (part) {
+      var box = root.querySelector('input[data-birth-part="' + part + '"]');
+      return box ? digitsOnly(box.value) : '';
+    });
+    var shown = root.querySelector('[data-birth-shown]');
+    var kind = '';
+    var wareki = root.querySelector('input[data-birth-group="wareki"]');
+    var western = root.querySelector('input[data-birth-group="western"]');
+    if (wareki && wareki.checked) kind = 'wareki';
+    if (western && western.checked) kind = 'western';
+    var eraEl = root.querySelector('input[data-birth-group="era"]:checked');
+    var era = eraEl ? eraEl.value : '';
+    if (!nums[0] && !nums[1] && !nums[2]) {
+      var ageClear = fileRec.rows.filter(function (item) { return item.order === row.order && item.field === '年齢'; })[0];
+      if (ageClear) ageClear.manual = false;
+      commitRowValue(row, '');
+      if (shown) shown.textContent = '';
+      return;
+    }
+    if (!(nums[0] && nums[1] && nums[2] && kind)) return;
+    var built = buildAgeDate(kind, era, nums[0], nums[1], nums[2]);
+    if (!built || !built.text) {
+      if (shown) shown.textContent = built && built.error ? built.error : '日付を確認';
+      return;
+    }
+    if (shown) shown.textContent = '';
+    var ageRow = fileRec.rows.filter(function (item) { return item.order === row.order && item.field === '年齢'; })[0];
+    if (ageRow) ageRow.manual = false;
+    commitRowValue(row, built.text);
+  }
+
+  function reflectFormBirth(row) {
+    var root = document.querySelector('#orders .birth-entry[data-row="' + row.id + '"]');
+    if (!root || root.contains(document.activeElement)) return;
+    var saved = readAgeEntry(row);
+    ['wareki', 'western'].forEach(function (kind) {
+      var radio = root.querySelector('input[data-birth-group="' + kind + '"]');
+      if (radio) radio.checked = !!(saved && saved.kind === kind);
+    });
+    root.querySelectorAll('input[data-birth-group="era"]').forEach(function (radio) {
+      radio.checked = !!(saved && saved.era === radio.value);
+    });
+    ['y', 'm', 'd'].forEach(function (part) {
+      var input = root.querySelector('input[data-birth-part="' + part + '"]');
+      if (input) input.value = saved ? saved[part] : '';
+    });
+    var shown = root.querySelector('[data-birth-shown]');
+    if (shown) shown.textContent = '';
+  }
+
   function buildValueControl(row) {
+    if (row.field === '生年月日') return formBirthControl(row);
     var choices = VALUE_CHOICES[row.field];
     if (!choices) {
       var input = document.createElement('input');
-      input.className = 'value';
+      input.className = row.field === '年齢' ? 'value age-value' : 'value';
       input.type = 'text';
       input.value = row.value || '';
       input.placeholder = PLACEHOLDERS[row.field] || '例';
@@ -928,6 +1041,7 @@
 
   function commitRowValue(row, next) {
     row.value = next;
+    if (row.field === '届け出番号') row.filingDefaulted = !String(next || '').trim();
     if (row.field === '性別') row.genderDefaulted = true;
     if (row.field === '年齢') row.manual = !!String(next || '').trim();
     markEditing();
@@ -1072,9 +1186,9 @@
     if (!choices) {
       var input = document.createElement('input');
       input.type = 'text';
-      input.value = existing ? (existing.value || '') : '';
+      input.value = field === '届け出番号' ? filingShown(existing) : (existing ? (existing.value || '') : '');
       input.readOnly = readOnly;
-      input.placeholder = PLACEHOLDERS[field] || '';
+      input.placeholder = field === '届け出番号' ? filingExample(order) : (PLACEHOLDERS[field] || '');
       input.dataset.bulkOrder = String(order);
       input.dataset.bulkField = field;
       if (field === '届け出番号' && !readOnly) {
@@ -1396,6 +1510,10 @@
   }
 
   function reflectForm(row) {
+    if (row.field === '生年月日') {
+      reflectFormBirth(row);
+      return;
+    }
     var text = document.querySelector('#orders input.value[data-row="' + row.id + '"]');
     if (text && text !== document.activeElement) text.value = row.value || '';
     var wrap = document.querySelector('#orders .radios[data-row="' + row.id + '"]');
@@ -1452,8 +1570,9 @@
   function migrateRowFields() {
     if (!fileRec) return;
     fileRec.rows.forEach(function (row) {
-      if (row.field === '新現元別') row.field = '新現元';
+      if (row.field === '新現元' || row.field === '新現元別') row.field = '新現元前';
       if (row.field === '党派') row.field = '政党';
+      normalizeFiling(row);
     });
     fileRec.rows = fileRec.rows.filter(function (row) {
       if (REMOVED_FIELDS.indexOf(row.field) === -1) return true;
@@ -1488,6 +1607,26 @@
     return Math.max(slots, fromRows, 1);
   }
 
+  function filingExample(order) {
+    return String(99 + Number(order));
+  }
+
+  function filingShown(row) {
+    if (!row || row.filingDefaulted) return '';
+    return row.value || '';
+  }
+
+  function normalizeFiling(row) {
+    if (!row || row.field !== '届け出番号') return;
+    var raw = String(row.value || '').trim();
+    if (!raw || raw === String(row.order)) {
+      row.filingDefaulted = true;
+      row.value = '';
+      return;
+    }
+    row.filingDefaulted = false;
+  }
+
   function ensureOrder(order) {
     var added = false;
     FIXED_FIELDS.forEach(function (name) {
@@ -1499,7 +1638,7 @@
         id: uid(),
         order: order,
         field: name,
-        value: name === '届け出番号' ? String(order) : (name === '性別' ? '男' : ''),
+        value: name === '性別' ? '男' : '',
         fixed: true,
         filingDefaulted: name === '届け出番号',
         genderDefaulted: name === '性別'
@@ -1515,11 +1654,7 @@
       if (!hit) return;
       used[hit.id] = true;
       hit.fixed = true;
-      if (hit.field === '届け出番号' && !hit.filingDefaulted) {
-        hit.filingDefaulted = true;
-        if (!String(hit.value || '').trim()) hit.value = String(order);
-        added = true;
-      }
+      if (hit.field === '届け出番号') normalizeFiling(hit);
       if (hit.field === '性別' && !hit.genderDefaulted) {
         hit.genderDefaulted = true;
         if (!String(hit.value || '').trim()) hit.value = '男';
@@ -2010,8 +2145,9 @@
   }
 
   function offerReeditA() {
-    ask('確認完了していますが、修正しますか？', 'はい', 'いいえ').then(function (choice) {
-      if (choice !== 'primary' || !fileRec || fileRec.status !== '確認完了') return;
+    ask('完了していますが、修正しますか？', 'はい', 'いいえ').then(function (choice) {
+      if (choice !== 'primary' || !fileRec) return;
+      if (fileRec.status !== '確認完了' && fileRec.status !== '入力完了') return;
       fileRec.status = '確認の途中';
       fileRec.aName = $('name').value.trim();
       persist();
