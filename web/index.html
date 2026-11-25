@@ -156,7 +156,7 @@
       flex: none;
       background: #fff;
       border-left: 1px solid var(--line);
-      overflow: auto;
+      overflow: hidden;
       display: flex;
       flex-direction: column;
       position: relative;
@@ -178,6 +178,7 @@
       box-shadow: 0 8px 28px rgba(0,0,0,.25);
     }
     .sheetHead {
+      cursor: grab;
       background: var(--navy);
       color: #fff;
       padding: 8px 12px;
@@ -283,6 +284,7 @@
       padding: 8px 12px;
       background: var(--navy);
       color: #fff;
+      cursor: grab;
     }
     .age-parts, .kana-parts, .age-cal, .era-picks { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
     .age-parts { flex: 1; }
@@ -318,6 +320,7 @@
       padding: 8px 12px;
       background: var(--navy);
       color: #fff;
+      cursor: grab;
     }
     .panel-scroll { overflow: auto; flex: 1; min-height: 0; padding-bottom: 22px; }
     #memoText { width: calc(100% - 24px); min-height: 140px; margin: 12px; font-size: 16px; padding: 8px; }
@@ -481,7 +484,7 @@
       <div class="sheetResize"></div>
       <div class="sheetCorner"></div>
       <div class="sheetHead" id="checksHead">
-        <span>確認事項</span>
+        <span>確認事項（ドラッグで移動）</span>
         <button type="button" id="checksMin" class="sheetMin">ー</button>
       </div>
       <section id="checks">
@@ -493,7 +496,7 @@
       <div class="sheetResize"></div>
       <div class="sheetCorner"></div>
       <div class="sheetHead" id="formHead">
-        <span id="formHeadText">入力欄</span>
+        <span id="formHeadText">入力欄（ドラッグで移動）</span>
         <button type="button" id="formMin" class="sheetMin">ー</button>
       </div>
       <section id="form">
@@ -585,6 +588,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=62"></script>
+  <script src="app.js?v=63"></script>
 </body>
 </html>
