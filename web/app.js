@@ -114,6 +114,12 @@
     var closed = panel.classList.toggle('minimized');
     $('formMin').textContent = closed ? '＋' : 'ー';
   });
+  $('checksMin').addEventListener('click', function (ev) {
+    ev.stopPropagation();
+    var panel = $('checksPanel');
+    var closed = panel.classList.toggle('minimized');
+    $('checksMin').textContent = closed ? '＋' : 'ー';
+  });
   $('hand').addEventListener('click', function () {
     handOn = !handOn;
     $('hand').classList.toggle('on', handOn);
@@ -728,7 +734,7 @@
     if (row.fixed) {
       field = document.createElement('div');
       field.className = 'name';
-      field.textContent = row.field;
+      field.textContent = fieldLabel(row.field);
     } else {
       field = document.createElement('select');
       field.className = 'field';
@@ -971,6 +977,12 @@
     el.dataset.row = row.id;
     el.dataset.part = 'value';
     el.dataset.order = String(row.order);
+  }
+
+  function fieldLabel(field) {
+    if (field === 'ふりがな（氏）') return 'フリガナ（氏）';
+    if (field === 'ふりがな（名）') return 'フリガナ（名）';
+    return field || '';
   }
 
   function isFurigana(field) {
@@ -1955,7 +1967,7 @@
         var line = document.createElement('div');
         line.className = 'review-item';
         var name = document.createElement('b');
-        name.textContent = row.field || '（項目名なし）';
+        name.textContent = fieldLabel(row.field) || '（項目名なし）';
         var val = document.createElement('span');
         val.textContent = (row.value || '（空）') + (row.unsure ? '  要確認' : '');
         line.appendChild(name);
@@ -2101,6 +2113,7 @@
       panel.style.zIndex = '';
     });
     $('formMin').textContent = 'ー';
+    $('checksMin').textContent = 'ー';
     if (!document.body.classList.contains('reviewing')) {
       $('formHeadText').textContent = '入力欄（ドラッグで移動）';
     }

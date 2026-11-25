@@ -195,8 +195,8 @@
       font-size: 18px;
       line-height: 1;
     }
-    #formPanel.minimized section { display: none; }
-    #formPanel.minimized { height: auto !important; overflow: hidden; }
+    .sheet.minimized section { display: none; }
+    .sheet.minimized { height: auto !important; overflow: hidden; }
     .sheetCorner {
       position: absolute;
       right: 0;
@@ -478,7 +478,10 @@
     <aside id="checksPanel" class="bonly sheet">
       <div class="sheetResize"></div>
       <div class="sheetCorner"></div>
-      <div class="sheetHead">確認事項（ドラッグで移動）</div>
+      <div class="sheetHead" id="checksHead">
+        <span>確認事項（ドラッグで移動）</span>
+        <button type="button" id="checksMin" class="sheetMin">ー</button>
+      </div>
       <section id="checks">
         <div id="memoRead" class="block" hidden></div>
         <div id="checkBody" class="block"></div>
@@ -493,7 +496,7 @@
       </div>
       <section id="form">
         <div class="block">
-          <p class="limit-note">ふりがなは全角カタカナ、年齢は半角数字で入力してください。</p>
+          <p class="limit-note">フリガナは全角カタカナ、年齢は半角数字で入力してください。</p>
           <div id="orders"></div>
           <button type="button" id="addOrder">＋別の届出順を追加</button>
           <button type="button" id="resetOrder">届出順1番のみに戻す</button>
@@ -575,6 +578,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=58"></script>
+  <script src="app.js?v=60"></script>
 </body>
 </html>
