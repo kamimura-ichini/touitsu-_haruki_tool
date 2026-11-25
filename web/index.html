@@ -161,7 +161,9 @@
       flex-direction: column;
       position: relative;
     }
-    #formPanel { width: 520px; }
+    #formPanel { width: 520px; overflow: hidden; }
+    #formPanel > section { overflow: auto; flex: 1; min-height: 0; }
+    #form .block { padding-bottom: 28px; }
     body.flip .sheet { border-left: 0; border-right: 1px solid var(--line); }
     body.collapsed .sheet { display: none; }
     .sheet.floating {
@@ -238,6 +240,8 @@
     .rowline input { min-width: 0; font-size: 16px; padding: 8px; }
     .rowline input.field, .rowline select.field { width: 11em; flex: none; font-size: 16px; }
     .rowline input.value, .rowline select.value { flex: 1; min-width: 10em; font-size: 16px; padding: 8px; }
+    .rowline input.value.age-value { flex: none; width: 5em; min-width: 0; }
+    .birth-entry { flex: 1 1 100%; display: flex; flex-direction: column; gap: 6px; }
     .rowline { flex-wrap: wrap; }
     .radios { display: flex; gap: 12px; flex: 1; flex-wrap: wrap; align-items: center; }
     .radios label, .unsure, .checkline { display: inline-flex; align-items: center; gap: 4px; }
@@ -448,7 +452,7 @@
     <button type="button" data-bulk="性別">性別</button>
     <button type="button" data-bulk="政党">政党</button>
     <button type="button" data-bulk="届け出番号">届出番号</button>
-    <button type="button" data-bulk="新現元">新現元</button>
+    <button type="button" data-bulk="新現元前">新現元前</button>
     <button type="button" data-bulk="肩書">肩書</button>
     <label>投開票日 <input id="electionDate" type="date"></label>
     <button type="button" id="memoBtn">メモ</button>
@@ -571,6 +575,6 @@
     window.APP_MODE = new URLSearchParams(location.search).get('mode') === 'b' ? 'b' : 'a';
     window.HAS_GAS = typeof google !== 'undefined' && google.script && google.script.run;
   </script>
-  <script src="app.js?v=57"></script>
+  <script src="app.js?v=58"></script>
 </body>
 </html>
