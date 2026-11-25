@@ -24,7 +24,7 @@
     '年齢': '47',
     '肩書': '市長'
   };
-  var DEFAULT_CANDIDATE_SLOTS = 10;
+  var DEFAULT_CANDIDATE_SLOTS = 20;
   var VALUE_CHOICES = {
     '性別': [
       { value: '男', label: '男' },
@@ -133,17 +133,6 @@
     markEditing();
     persist();
     renderMemo();
-  });
-  $('electionDate').addEventListener('change', function () {
-    if (!fileRec || mode !== 'a' || locked) {
-      $('electionDate').value = fileRec && fileRec.electionDate ? fileRec.electionDate : '';
-      return;
-    }
-    fileRec.electionDate = $('electionDate').value;
-    fileRec.electionDefaulted = true;
-    markEditing();
-    persist();
-    refreshAges();
   });
   $('reviewBtn').addEventListener('click', function () {
     if (!ensureFile()) {
@@ -268,7 +257,6 @@
       pdfDoc = opened.doc;
       fileRec = takeFile(opened.hash, fileName, pdfDoc.numPages);
       migrateRowFields();
-      if (ensureElectionDate()) writeStoreFile();
       undoStack = readUndo(opened.hash);
       selectedId = null;
       emphasizedId = null;
@@ -1122,30 +1110,58 @@
     }
     var total = candidateSlotCount();
     for (var order = 1; order <= total; order++) body.appendChild(bulkLine(order, field));
-    var add = document.createElement('button');
-    add.type = 'button';
-    add.className = 'bulk-add';
-    add.textContent = '候補者を増やす';
-    add.addEventListener('click', addCandidateSlot);
-    body.appendChild(add);
+    appendSlotButtons(body);
+  }
+
+  function appendSlotButtons(body) {
+    if (mode !== 'a') return;
+    var bar = document.createElement('div');
+    bar.className = 'bulk-slots';
+    [[5, '5名追加'], [10, '10名追加'], [20, '20名追加'], [-1, '1名削除'], [-5, '5名削除']].forEach(function (spec) {
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = spec[1];
+      btn.addEventListener('click', function () { changeCandidateSlots(spec[0]); });
+      bar.appendChild(btn);
+    });
+    body.appendChild(bar);
   }
 
   function inputLimitNote(field) {
     if (field === 'ふりがな') return '全角カタカナで入力してください。';
-    if (field === '年齢') return '年・月・日は半角数字で入力してください。';
+    if (field === '年齢') return '生年月日があるときはその年齢を使います。生年月日がわからないときは年齢だけ入力してください。年・月・日と年齢は半角数字です。';
     if (field === '届け出番号') return '半角数字で入力してください。';
     return '';
   }
 
-  function addCandidateSlot() {
-    if (!ensureFile() || locked) return;
-    var next = candidateSlotCount() + 1;
-    fileRec.candidateSlots = next;
-    if (mode === 'b') ensureOrder(next);
-    markEditing();
-    persist();
-    renderForm();
-    renderBulk();
+  function changeCandidateSlots(delta) {
+    if (!ensureFile() || locked || mode !== 'a') return;
+    var current = candidateSlotCount();
+    var next = Math.max(1, current + delta);
+    if (next === current) return;
+    function apply() {
+      if (next < current) {
+        snapshot();
+        fileRec.rows = fileRec.rows.filter(function (row) { return row.order <= next; });
+      }
+      fileRec.candidateSlots = next;
+      markEditing();
+      persist();
+      renderForm();
+      renderBulk();
+    }
+    if (next < current) {
+      var hasValue = fileRec.rows.some(function (row) {
+        return row.order > next && (String(row.value || '').trim() || row.unsure);
+      });
+      if (hasValue) {
+        ask('末尾の' + (current - next) + '名を消します。', '戻る', '消す').then(function (choice) {
+          if (choice === 'secondary') apply();
+        });
+        return;
+      }
+    }
+    apply();
   }
 
   function unsureToggle(order, field, existing) {
@@ -1333,10 +1349,26 @@
     });
     line.appendChild(parts);
     var age = findBulkRow(order, '年齢');
+    var ageInput = document.createElement('input');
+    ageInput.type = 'text';
+    ageInput.inputMode = 'numeric';
+    ageInput.className = 'age-only';
+    ageInput.placeholder = '年齢';
+    ageInput.value = age && age.value ? age.value : '';
+    ageInput.readOnly = mode === 'b' || !!saved;
+    ageInput.dataset.bulkOrder = String(order);
+    ageInput.dataset.ageOnly = '1';
+    ageInput.addEventListener('input', function () {
+      if (mode === 'b') return;
+      applyAgeOnly(order);
+    });
+    line.appendChild(ageInput);
+    var unit = document.createElement('span');
+    unit.textContent = '歳';
+    line.appendChild(unit);
     var shown = document.createElement('span');
     shown.className = 'bulk-copied';
     shown.dataset.ageShown = String(order);
-    shown.textContent = age && age.value ? age.value + '歳' : '';
     line.appendChild(shown);
     line.appendChild(unsureToggle(order, '年齢', age));
     return line;
@@ -1391,9 +1423,14 @@
     var birth = ensureBulkRow(order, '生年月日');
     var ageRow = ensureBulkRow(order, '年齢');
     var shown = document.querySelector('[data-age-shown="' + order + '"]');
+    var ageOnly = ageOnlyInput(order);
     if (!nums[0] && !nums[1] && !nums[2]) {
       birth.value = '';
-      if (!ageRow.manual) ageRow.value = '';
+      if (!ageRow.manual) {
+        ageRow.value = '';
+        if (ageOnly && ageOnly !== document.activeElement) ageOnly.value = '';
+      }
+      if (ageOnly) ageOnly.readOnly = mode === 'b';
       if (shown) shown.textContent = '';
     } else if (nums[0] && nums[1] && nums[2] && selectedAgeKind(order)) {
       var built = buildAgeDate(selectedAgeKind(order), selectedEra(order), nums[0], nums[1], nums[2]);
@@ -1404,13 +1441,46 @@
       birth.value = built.text;
       ageRow.manual = false;
       syncAge(order);
-      if (shown) shown.textContent = ageRow.value ? ageRow.value + '歳' : '';
+      if (shown) shown.textContent = '';
+      if (ageOnly) {
+        ageOnly.readOnly = true;
+        ageOnly.value = ageRow.value || '';
+      }
     } else {
       return;
     }
     markEditing();
     persist();
     reflectForm(birth);
+    reflectForm(ageRow);
+    paintBulkButtons();
+  }
+
+  function ageOnlyInput(order) {
+    return document.querySelector('#bulkBody input[data-bulk-order="' + order + '"][data-age-only]');
+  }
+
+  function applyAgeOnly(order) {
+    var input = ageOnlyInput(order);
+    if (!input || mode === 'b') return;
+    if (readAgeEntry(findBulkRow(order, '生年月日'))) {
+      var lockedAge = findBulkRow(order, '年齢');
+      input.readOnly = true;
+      input.value = lockedAge && lockedAge.value ? lockedAge.value : '';
+      return;
+    }
+    var next = digitsOnly(input.value);
+    if (next && Number(next) > 100) {
+      var kept = findBulkRow(order, '年齢');
+      input.value = kept && kept.manual ? kept.value : '';
+      return;
+    }
+    if (input.value !== next) input.value = next;
+    var ageRow = ensureBulkRow(order, '年齢');
+    ageRow.manual = !!next;
+    ageRow.value = next;
+    markEditing();
+    persist();
     reflectForm(ageRow);
     paintBulkButtons();
   }
@@ -1457,9 +1527,12 @@
       });
     }
     var age = findBulkRow(order, '年齢');
-    var shown = document.querySelector('[data-age-shown="' + order + '"]');
-    if (shown && document.activeElement && document.activeElement.dataset && document.activeElement.dataset.agePart) return;
-    if (shown) shown.textContent = age && age.value ? age.value + '歳' : '';
+    var ageOnly = ageOnlyInput(order);
+    var ready = !!readAgeEntry(findBulkRow(order, '生年月日'));
+    if (ageOnly && ageOnly !== document.activeElement) {
+      ageOnly.value = age && age.value ? age.value : '';
+      ageOnly.readOnly = mode === 'b' || ready;
+    }
   }
 
   function readAgeEntry(row) {
@@ -1509,13 +1582,6 @@
     var now = new Date();
     function pad(n) { return (n < 10 ? '0' : '') + n; }
     return now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate());
-  }
-
-  function ensureElectionDate() {
-    if (!fileRec || fileRec.electionDate || fileRec.electionDefaulted) return false;
-    fileRec.electionDate = todayISO();
-    fileRec.electionDefaulted = true;
-    return true;
   }
 
   function reflectBulkUnsure(row) {
@@ -1726,7 +1792,7 @@
   function updateAgeHint(row, hintEl, basisEl) {
     var hint = hintEl || document.querySelector('[data-age-hint="' + row.id + '"]');
     var basis = basisEl || document.querySelector('[data-age-basis="' + row.id + '"]');
-    var label = ageBasis().today ? '今日時点' : '投開票日時点';
+    var label = '今日時点';
     if (hint) {
       hint.hidden = false;
       hint.textContent = row.manual ? '手入力' : (row.value ? label : '生年月日を入れると計算します');
@@ -1758,12 +1824,6 @@
   }
 
   function ageBasis() {
-    var raw = fileRec && fileRec.electionDate;
-    if (raw) {
-      var parts = String(raw).split('-');
-      var picked = makeDate(Number(parts[0]), Number(parts[1]), Number(parts[2]));
-      if (picked) return { date: picked, today: false };
-    }
     return { date: new Date(), today: true };
   }
 
@@ -2034,7 +2094,6 @@
     var body = $('aPreviewBody');
     body.innerHTML = '';
     body.appendChild(previewBlock('メモ', fileRec.memo || '（なし）'));
-    body.appendChild(previewBlock('投開票日', fileRec.electionDate || '未入力（年齢は今日時点）'));
     BULK_FIELDS.forEach(function (key) {
       var lines = [];
       var total = candidateSlotCount();
@@ -2292,10 +2351,6 @@
     $('completeA').disabled = !editing;
     $('reviewBtn').disabled = !editing;
     $('completeB').disabled = !editing;
-    $('electionDate').disabled = mode !== 'a' || !editing;
-    if (document.activeElement !== $('electionDate')) {
-      $('electionDate').value = fileRec && fileRec.electionDate ? fileRec.electionDate : '';
-    }
     $('memoText').readOnly = mode !== 'a' || !editing;
   }
 
@@ -2384,8 +2439,6 @@
       pins: [],
       rows: [],
       candidateSlots: DEFAULT_CANDIDATE_SLOTS,
-      electionDate: todayISO(),
-      electionDefaulted: true,
       updatedAt: 0
     };
   }
